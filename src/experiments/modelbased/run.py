@@ -1,11 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-import modelbased.data.noise_from_model
-import modelbased.problems.robust_regression as robreg
+import data.noise_from_model
+import problems.robust_regression as robreg
 
 
-def run():
+def run_robust_regression():
     N = 300
     P_gen = 10
     P_model = 20
@@ -21,7 +21,7 @@ def run():
     def fun(x):
         return robreg.LaplaceNoise1d.f(u, x)
 
-    x, y_noisy, y = modelbased.data.noise_from_model.generate(N, fun)
+    x, y_noisy, y = data.noise_from_model.generate(N, fun)
 
     Reg = robreg.LaplaceNoise1d(x, y_noisy)
 
@@ -43,4 +43,4 @@ def plot(x, y, y_noisy, y_predict, y_init):
 
 
 if __name__ == '__main__':
-    run()
+    run_robust_regression()

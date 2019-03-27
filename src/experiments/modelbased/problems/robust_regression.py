@@ -231,31 +231,16 @@ class LaplaceNoise1d:
 
         # ==============================================================================================================
 
-        p1, losses1 = projected_gradient_armijo(p)
-        # p2, losses2 = projected_gradient_fixed(p)
+        p_new, losses = projected_gradient_armijo(p)
 
-        # plt.figure()
-        # plt.title('Dual problem loss')
-        # plt.plot(range(len(losses1)), losses1)
-        # plt.plot(range(len(losses2)), losses2)
-        # plt.show()
-
-        p_new = p1
-
-        # Get primal solution. TODO: Problem here?
+        # Get primal solution.
         u = uk - tau * Jfuk.T.dot(p_new)
 
-        print("E(p0): {}".format(E(p)))
-        print("E(p*): {}".format(E(p_new)))
+        print("E(p0): {}".format(E(p).squeeze()))
+        print("E(p*): {}".format(E(p_new).squeeze()))
 
         print("P(uk): {}".format(P(uk)))
         print("P(u*): {}".format(P(u)))
-        print("")
-
-        # Scipy solver primal.
-        # x0 = np.empty(uk.shape)
-        # res = minimize(P, x0, method='Nelder-Mead', options={'disp': True})
-        # print("Scipy P(u*): {}".format(P(res.x)))
 
         # Loss of the linearized sub-problem without the proximal term.
         linloss = np.abs(Jfuk.dot(u) - yhat).sum()
@@ -270,7 +255,7 @@ class LaplaceNoise1d:
         mu = mu_min
         tau = 2
         sigma = 0.8
-        eps = 1e-6
+        eps = 1e-3
 
         u = u_init
 
@@ -292,7 +277,7 @@ class LaplaceNoise1d:
                 diff_loss = loss_old - loss_new
                 diff_lin = loss_old - linloss
 
-                print(loss_old, loss_new, mu, diff_u)
+                print("L(uk) = {}, L(uk+1) = {}, mu = {}, diff_u = {}.".format(loss_old, loss_new, mu, diff_u))
 
                 if diff_u <= eps:
                     terminate = True
@@ -314,13 +299,12 @@ class LaplaceNoise1d:
             loss, y_predict = self.loss(u, self.x, self.y_t)
             losses.append(loss)
 
-            print("{}: {}".format(i, loss))
+            print()
+            print("Iteration {}: {}".format(i, loss))
+            print()
 
             if terminate:
                 break
-
-        print('Terminated.')
-        print(losses)
 
         plt.figure()
         plt.plot(range(len(losses)), losses)
@@ -338,8 +322,6 @@ class LaplaceNoise1d:
         return a, b, P
 
     def run(self, u_init):
-        # TODO self._check_grad(self.x)
-
         u = self.prox_descent(u_init)
 
         loss, y_predict = self.loss(u, self.x, self.y_t)
