@@ -1,6 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pylab as plt
 import scipy.optimize
+import logging
+
+import modelbased.data.noise_from_model
+import modelbased.utils
+import modelbased.solver.proxdescent
+import modelbased.solver.projected_gradient
 
 
 class LaplaceNoise1d:
@@ -15,12 +21,22 @@ class LaplaceNoise1d:
 
     with data (x_i,y_i) \in R^2.
 
-    It is solved by using ProxDescent. For the subproblems FISTA is used.
+    Solve the linearized sub-problem (at u^k).
+
+        \min_u \{ L(u) = \sum_i^N \| Jf_i(u^k)*u - \hat{y_i} \|_1 + \frac{1}{2\tau} \| u - u^k \|_2^2 \},
+
+    where \hat{y_i} = y_i - f_i(u^k) + Jf_i(u^k) u^k.
+
+    We use the proximal gradient method on the dual problem:
+
+        -\min_p \{ E(p) = \frac{1}{2 \tau} \| \tau Jf^T p - u^k \|_2^2 + \hat{y}^Tp \}
+
+        s.t. \| p \|_\infty \le 1.
     """
 
     def __init__(self, x, y_targets):
         self.x = x
-        self.y_t = y_targets
+        self.yt = y_targets
 
     @staticmethod
     def f(u, x):
@@ -40,6 +56,41 @@ class LaplaceNoise1d:
         y = b.T.dot(np.exp(-A.dot(np.diag(np.squeeze(x))))).T
 
         return y
+
+    @staticmethod
+    def h(y):
+        """
+        :param y: shape = (N, 1).
+
+        :return: h(y).
+        """
+        return np.abs(y).sum()
+
+    @staticmethod
+    def c(u, x, y_targets):
+        """
+        :param u: shape = (2P, 1).
+        :param x: shape = (N, 1).
+        :param y_targets: shape = (N, 1).
+
+        :return: c(u), shape = (N, 1).
+        """
+        y = LaplaceNoise1d.f(u, x)
+
+        c = y - y_targets
+
+        return c
+
+    @staticmethod
+    def loss(u, x, y_targets):
+        """
+        :param u: shape = (2P, 1).
+        :param x: shape = (N, 1).
+        :param y_targets: shape = (N, 1).
+
+        :return: L(w).
+        """
+        return LaplaceNoise1d.h(LaplaceNoise1d.c(u, x, y_targets))
 
     @staticmethod
     def Jf(u, x):
@@ -92,62 +143,46 @@ class LaplaceNoise1d:
         print(np.mean(err))
 
     @staticmethod
-    def loss(u, x, y_targets):
-        """
-        :param u: shape = (2P, 1).
-        :param x: shape = (N, 1).
-        :param y_targets: shape = (N, 1).
+    def split_params(u):
+        P = int(u.shape[0] / 2)
 
-        :return: L(w).
-        """
-        y = LaplaceNoise1d.f(u, x)
+        a = u[:P]
+        b = u[P:]
 
-        loss = np.abs(y - y_targets).sum()
-
-        return loss, y
+        return a, b, P
 
     @staticmethod
-    def solve_subproblem(uk, x, y_targets, tau):
+    def solve_linearized_subproblem(uk, tau, x, y_targets):
         """
-        Solve the linearized sub-problem (at u^k).
-
-            \min_u \{ L(u) = \sum_i^N \| Jf_i(u^k)*u - \hat{y_i} \|_1 + \frac{1}{2\tau} \| u - u^k \|_2^2 \},
-
-        where \hat{y_i} = y_i - f_i(u^k) + Jf_i(u^k) u^k.
-
-        We use the proximal gradient method on the dual problem:
-
-            -\min_p \{ E(p) = \frac{1}{2 \tau} \| \tau Jf^T p - u^k \|_2^2 + \hat{y}^Tp \}
-
-            s.t. \| p \|_\infty \le 1.
+        Solve the inner linearized subproblem using gradient ascent on the dual problem.
 
         :param uk: shape = (2P, 1).
+        :param tau: Proximal weight of the subproblem.
         :param x: shape = (N, 1).
         :param y_targets: shape = (N, 1).
-        :param tau: Proximal weight of the subproblem.
 
         :return: Approximate solution \argmin L(u).
         """
         N = x.shape[0]
 
-        # Jf(u^k).
+        # (N, 2P). Jf(u^k).
         Jfuk = LaplaceNoise1d.Jf(uk, x)
 
-        # (N, 1).
+        # (N, 1). Inner constant part per iteration.
         yhat = y_targets - LaplaceNoise1d.f(uk, x) + Jfuk.dot(uk)
 
         # Primal problem.
         def P(u):
-            return np.abs(Jfuk.dot(u) - yhat).sum() + (1 / (2 * tau)) * ((u - uk) ** 2).sum()
+            return LaplaceNoise1d.h(Jfuk.dot(u) - yhat) + (1 / (2 * tau)) * ((u - uk) ** 2).sum()
 
         # Dual problem.
-        def E(p):
+        def D(p):
             c = tau * Jfuk.T.dot(p) - uk
             loss = (1 / (2 * tau)) * (c ** 2).sum() + yhat.T.dot(p)
 
             return loss
 
-        def gradE(p):
+        def gradD(p):
             return Jfuk.dot(tau * Jfuk.T.dot(p) - uk) + yhat
 
         def proj_max(v):
@@ -170,160 +205,83 @@ class LaplaceNoise1d:
         # (N, 1).
         p = proj_max(np.empty((N, 1)))
 
-        def projected_gradient_fixed(p):
-            max_iter = 5000
-            sigma = 0.0001
+        params = modelbased.utils.Params(
+            max_iter=3000,
+            eps=1e-10,
+            beta=0.3,
+            gamma=1e-2,
+            tau=1e-2,
+            sigmamin=1e-10)
 
-            losses = []
-
-            for i in range(max_iter):
-                grad = gradE(p)
-
-                p = proj_max(p - sigma * grad)
-
-                losses.append(E(p).squeeze())
-
-            return p, losses
-
-        def projected_gradient_armijo(p):
-            max_iter = 3000
-            eps = 1e-10
-            beta = 0.3
-            gamma = 1e-2
-            tau = 1e-2
-            sigmamin = 1e-10
-
-            losses = []
-            stop = False
-
-            for i in range(max_iter):
-                grad = gradE(p)
-                dtau = p - proj_max(p - tau * grad)
-
-                opt = np.sqrt((dtau ** 2)).sum() / tau
-                if opt <= eps:
-                    break
-
-                dk = -dtau
-
-                # Armijo.
-                i = 0
-                while True:
-                    sigma = beta ** i
-
-                    if sigma < sigmamin:
-                        stop = True
-                        break
-
-                    if E(p + sigma * dk) - E(p) <= gamma * sigma * grad.T.dot(dk):
-                        p = p + sigma * dk
-                        break
-
-                    i += 1
-
-                if stop:
-                    break
-
-                loss = E(p).squeeze()
-                losses.append(loss)
-
-            return p, losses
-
-        # ==============================================================================================================
-
-        p_new, losses = projected_gradient_armijo(p)
+        p_new, losses = modelbased.solver.projected_gradient.armijo(p, D, gradD, proj_max, params)
 
         # Get primal solution.
         u = uk - tau * Jfuk.T.dot(p_new)
 
-        print("E(p0): {}".format(E(p).squeeze()))
-        print("E(p*): {}".format(E(p_new).squeeze()))
+        logging.info("D(p0): {}".format(D(p).squeeze()))
+        logging.info("D(p*): {}".format(D(p_new).squeeze()))
 
-        print("P(uk): {}".format(P(uk)))
-        print("P(u*): {}".format(P(u)))
+        logging.info("P(uk): {}".format(P(uk)))
+        logging.info("P(u*): {}".format(P(u)))
 
         # Loss of the linearized sub-problem without the proximal term.
-        linloss = np.abs(Jfuk.dot(u) - yhat).sum()
+        linloss = LaplaceNoise1d.h(Jfuk.dot(u) - yhat)
 
         return u, linloss
 
-    def prox_descent(self, u_init):
-        x, y_t = self.x, self.y_t
-
-        max_iter = 10
-        mu_min = 10
-        mu = mu_min
-        tau = 2
-        sigma = 0.8
-        eps = 1e-3
-
-        u = u_init
-
-        terminate = False
-
-        losses = []
-        loss_init, _ = self.loss(u, x, y_t)
-        losses.append(loss_init)
-
-        for i in range(max_iter):
-            while True:
-                loss_old, _ = self.loss(u, x, y_t)
-
-                u_new, linloss = self.solve_subproblem(u, x, y_t, mu ** -1)
-
-                loss_new, _ = self.loss(u_new, x, y_t)
-
-                diff_u = np.sqrt(((u - u_new) ** 2).sum())
-                diff_loss = loss_old - loss_new
-                diff_lin = loss_old - linloss
-
-                print("L(uk) = {}, L(uk+1) = {}, mu = {}, diff_u = {}.".format(loss_old, loss_new, mu, diff_u))
-
-                if diff_u <= eps:
-                    terminate = True
-                    break
-
-                if mu >= 1e6:
-                    terminate = True
-                    break
-
-                # Accept if decrease is sufficiently large.
-                if diff_loss >= sigma * diff_lin:
-                    mu = max(mu_min, mu / tau)
-
-                    u = u_new
-                    break
-                else:
-                    mu = tau * mu
-
-            loss, y_predict = self.loss(u, self.x, self.y_t)
-            losses.append(loss)
-
-            print()
-            print("Iteration {}: {}".format(i, loss))
-            print()
-
-            if terminate:
-                break
-
-        plt.figure()
-        plt.plot(range(len(losses)), losses)
-        plt.show()
-
-        return u
-
-    @staticmethod
-    def split_params(u):
-        P = int(u.shape[0] / 2)
-
-        a = u[:P]
-        b = u[P:]
-
-        return a, b, P
-
     def run(self, u_init):
-        u = self.prox_descent(u_init)
+        params = modelbased.utils.Params(
+            max_iter=10,
+            mu_min=10,
+            tau=2,
+            sigma=0.8,
+            eps=1e-3)
 
-        loss, y_predict = self.loss(u, self.x, self.y_t)
+        def h(y):
+            return self.h(y)
 
-        return y_predict
+        def c(u):
+            return self.c(u, self.x, self.yt)
+
+        def subsolver(u, tau):
+            return self.solve_linearized_subproblem(u, tau, self.x, self.yt)
+
+        proxdescent = modelbased.solver.proxdescent.ProxDescent(params, h, c, subsolver)
+        u_new = proxdescent.prox_descent(u_init)
+
+        return u_new
+
+
+def plot(x, y, y_noisy, y_predict, y_init):
+    plt.plot(x, y, label='true')
+    plt.scatter(x, y_noisy, marker='x')
+    plt.plot(x, y_predict, label='predict')
+    plt.plot(x, y_init, label='init')
+    plt.legend()
+    plt.show()
+
+
+def run():
+    N = 300
+    P_gen = 10
+    P_model = 20
+
+    # Generate some noisy data.
+    a = 2 * np.random.random((P_gen, 1))
+    b = np.random.random((P_gen, 1))
+    u = np.concatenate((a, b), axis=0)
+
+    def fun(x):
+        return LaplaceNoise1d.f(u, x)
+
+    x, y_noisy, y = modelbased.data.noise_from_model.generate(N, fun)
+
+    Reg = LaplaceNoise1d(x, y_noisy)
+
+    u_init = 0.1 * np.ones((2 * P_model, 1))
+    u_new = Reg.run(u_init)
+    y_predict = Reg.f(u_new, x)
+
+    y_init = Reg.f(u_init, x)
+
+    plot(x, y, y_noisy, y_predict, y_init)
