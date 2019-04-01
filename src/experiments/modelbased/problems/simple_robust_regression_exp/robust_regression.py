@@ -5,7 +5,7 @@ import logging
 
 import modelbased.data.noise_from_model
 import modelbased.utils
-import modelbased.solver.proxdescent
+import modelbased.solver.prox_descent
 import modelbased.solver.projected_gradient
 
 
@@ -237,16 +237,13 @@ class LaplaceNoise1d:
             sigma=0.8,
             eps=1e-3)
 
-        def h(y):
-            return self.h(y)
-
-        def c(u):
-            return self.c(u, self.x, self.yt)
+        def loss(u):
+            return self.loss(u, self.x, self.yt)
 
         def subsolver(u, tau):
             return self.solve_linearized_subproblem(u, tau, self.x, self.yt)
 
-        proxdescent = modelbased.solver.proxdescent.ProxDescent(params, h, c, subsolver)
+        proxdescent = modelbased.solver.prox_descent.ProxDescent(params, loss, subsolver)
         u_new = proxdescent.prox_descent(u_init)
 
         return u_new
@@ -276,12 +273,12 @@ def run():
 
     x, y_noisy, y = modelbased.data.noise_from_model.generate(N, fun)
 
-    Reg = LaplaceNoise1d(x, y_noisy)
+    reg = LaplaceNoise1d(x, y_noisy)
 
     u_init = 0.1 * np.ones((2 * P_model, 1))
-    u_new = Reg.run(u_init)
-    y_predict = Reg.f(u_new, x)
+    u_new = reg.run(u_init)
+    y_predict = reg.f(u_new, x)
 
-    y_init = Reg.f(u_init, x)
+    y_init = reg.f(u_init, x)
 
     plot(x, y, y_noisy, y_predict, y_init)

@@ -3,14 +3,10 @@ import logging
 
 
 class ProxDescent:
-    def __init__(self, params, h, c, solve_linearized_subproblem):
+    def __init__(self, params, loss, solve_linearized_subproblem):
         self.params = params
-        self.h = h
-        self.c = c
+        self.loss = loss
         self.solve_linearized_subproblem = solve_linearized_subproblem
-
-    def loss(self, u):
-        return self.h(self.c(u))
 
     def prox_descent(self, u_init):
         losses = []
@@ -63,5 +59,4 @@ class ProxDescent:
             if terminate:
                 break
 
-        print(losses)
         return u
