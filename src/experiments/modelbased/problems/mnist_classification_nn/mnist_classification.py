@@ -1,6 +1,8 @@
 import modelbased.data.mnist as mnist_data
 import modelbased.problems.mnist_classification_nn.nn as mnist_nn
-import modelbased.utils
+import modelbased.utils.trainrun
+import modelbased.utils.misc
+import modelbased.utils.yaml
 
 import modelbased.solver.torch_gradient_descent
 import modelbased.solver.gradient_descent
@@ -16,8 +18,8 @@ import logging
 
 
 class ClassificationMNIST:
-    def __init__(self):
-        trainloader, _, _, _, _ = mnist_data.load('datasets/mnist', 10, 10, one_hot_encoding=True)
+    def __init__(self, subset, batchsize):
+        trainloader, _, _, _, _ = mnist_data.load('datasets/mnist', subset, 10, batchsize, 10, one_hot_encoding=True)
 
         self.trainloader = trainloader
         self.net = mnist_nn.SimpleConvNetMNIST(F.relu)
@@ -106,7 +108,7 @@ class ClassificationMNIST:
 
         return J.detach()
 
-    def solve_linearized_subproblem(self, uk, tau, x, yt):
+    def solve_linearized_subproblem(self, uk, tau, x, yt, verbose=False):
         """
         Solve the linearized subproblem using gradient ascent on the dual problem.
         This is required for ProxDescent.
@@ -116,6 +118,8 @@ class ClassificationMNIST:
 
         :param x: Torch tensor with shape = (batchsize, channels, ysize, xsize).
         :param yt: Torch tensor with shape = (batchsize, classes).
+
+        :param verbose: Prints primal and dual loss after optimizing.
 
         :return: Approximate solution \argmin L(u).
         """
@@ -149,7 +153,7 @@ class ClassificationMNIST:
 
         p = np.ones((N, 1), dtype=np.float32)
 
-        params = modelbased.utils.Params(
+        params = modelbased.utils.misc.Params(
             max_iter=5000,
             eps=1e-10,
             beta=0.3,
@@ -166,11 +170,12 @@ class ClassificationMNIST:
         # Get primal solution.
         u = uk - tau * Jfuk.t().mm(p_new)
 
-        logging.info("D(p0): {}".format(D(p)))
-        logging.info("D(p*): {}".format(D(p_new.numpy())))
+        if verbose:
+            logging.info("D(p0): {}".format(D(p)))
+            logging.info("D(p*): {}".format(D(p_new.numpy())))
 
-        logging.info("P(uk): {}".format(P(uk)))
-        logging.info("P(u*): {}".format(P(u)))
+            logging.info("P(uk): {}".format(P(uk)))
+            logging.info("P(u*): {}".format(P(u)))
 
         # TODO plot_losses(losses)
 
@@ -179,86 +184,96 @@ class ClassificationMNIST:
 
         return u.detach(), linloss
 
-    def optimize_pd(self):
+    def optimize_pd(self, num_epochs):
         """
         Optimize using ProxDescent.
         """
-        params = modelbased.utils.Params(max_iter=10, mu_min=1, tau=2, sigma=0.5, eps=1e-8)
+        params = modelbased.utils.misc.Params(max_iter=1, mu_min=1, tau=2, sigma=0.5, eps=1e-8)
 
-        x, yt = iter(self.trainloader).next()
+        def step_fun(x, yt):
+            u_init = self.net.params.detach()
 
-        u_init = self.net.params.detach()
+            def loss(u):
+                return self.loss(u, x, yt)
 
-        def loss(u):
-            return self.loss(u, x, yt)
+            def subsolver(u, tau):
+                return self.solve_linearized_subproblem(u, tau, x, yt)
 
-        def subsolver(u, tau):
-            return self.solve_linearized_subproblem(u, tau, x, yt)
+            proxdescent = modelbased.solver.prox_descent.ProxDescent(params, loss, subsolver)
 
-        proxdescent = modelbased.solver.prox_descent.ProxDescent(params, loss, subsolver)
+            with torch.no_grad():
+                u_new, losses = proxdescent.prox_descent(u_init)
 
-        with torch.no_grad():
-            u_new, losses = proxdescent.prox_descent(u_init)
+            self.net.params = u_new
 
-        self.net.params = u_new
+            return losses
 
+        def interval_fun(epoch, iteration, total_losses):
+            logging.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, total_losses[-1]))
+
+        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun,
+                                                     interval_fun=interval_fun, interval=1)
+
+        filename = modelbased.utils.misc.append_time('prox_descent')
+
+        modelbased.utils.misc.plot_losses(total_losses, filename)
+        modelbased.utils.yaml.write(filename, total_losses, params)
         self.predict_class()
-        plot_losses(losses, 'prox_descent')
 
-    def optimize_gd(self, armijo=False):
-        """
-        Optimize using gradient descent.
-        """
-        x, yt = iter(self.trainloader).next()
-
-        def f(u):
-            return self.loss(torch.from_numpy(u), x, yt)
-
-        def G(u):
-            return self.gradient(torch.from_numpy(u), x, yt).numpy()
-
-        u_init = self.net.params.detach().numpy()
-
+    def optimize_gd(self, num_epochs, armijo=False):
         if armijo:
-            params = modelbased.utils.Params(max_iter=500, beta=0.5, gamma=1e-8)
-            u_new, losses = modelbased.solver.gradient_descent.armijo(u_init, f, G, params)
+            params = modelbased.utils.misc.Params(max_iter=1, beta=0.5, gamma=1e-8)
         else:
-            params = modelbased.utils.Params(max_iter=1500, sigma=0.001)
-            u_new, losses = modelbased.solver.gradient_descent.fixed_stepsize(u_init, f, G, params)
+            params = modelbased.utils.misc.Params(max_iter=1, sigma=0.001)
 
-        self.net.params = torch.from_numpy(u_new)
+        def step_fun(x, yt):
+            def f(u):
+                return self.loss(torch.from_numpy(u), x, yt)
 
+            def G(u):
+                return self.gradient(torch.from_numpy(u), x, yt).numpy()
+
+            u_init = self.net.params.detach().numpy()
+
+            if armijo:
+                u_new, losses = modelbased.solver.gradient_descent.armijo(u_init, f, G, params)
+            else:
+                u_new, losses = modelbased.solver.gradient_descent.fixed_stepsize(u_init, f, G, params)
+
+            self.net.params = torch.from_numpy(u_new)
+
+            return losses
+
+        def interval_fun(epoch, iteration, total_losses):
+            logging.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, total_losses[-1]))
+
+        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun,
+                                                     interval_fun=interval_fun, interval=1)
+
+        filename = modelbased.utils.misc.append_time('gradient_descent')
+
+        modelbased.utils.misc.plot_losses(total_losses, filename)
+        modelbased.utils.yaml.write(filename, total_losses, params)
         self.predict_class()
-        plot_losses(losses, 'gradient_descent')
-
-    def run_fullbatch(self):
-        self.optimize_gd()
 
     def predict_class(self):
+        correct = 0
+        num = 0
+
         for x, yt in self.trainloader:
             y = self.net(x).detach().numpy()
 
             y_class = np.argmax(y, 1)
             yt_class = np.argmax(yt.numpy(), 1)
 
-            correct = (y_class == yt_class).sum()
+            correct += (y_class == yt_class).sum()
+            num += y_class.shape[0]
 
-            print("Correctly classified: {}/{}.".format(correct, y_class.shape[0]))
-
-
-def plot_losses(losses, filename):
-    plt.figure()
-    plt.plot(range(len(losses)), losses, linewidth=0.4)
-
-    plt.minorticks_on()
-    plt.grid(which='major', linestyle='-', linewidth=0.1)
-    plt.title(filename)
-
-    plt.show()
-    plt.savefig('modelbased/results/' + filename)
+        print("Correctly classified: {}/{}.".format(correct, num))
 
 
 def run():
-    cls = ClassificationMNIST()
+    cls = ClassificationMNIST(10, 5)
 
-    cls.run_fullbatch()
+    # cls.optimize_gd(10)
+    cls.optimize_pd(1)

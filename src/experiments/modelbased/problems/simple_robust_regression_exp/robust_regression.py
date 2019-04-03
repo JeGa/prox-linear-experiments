@@ -189,7 +189,7 @@ class LaplaceNoise1d:
         # (N, 1).
         p = modelbased.solver.utils.proj_max(np.empty((N, 1)))
 
-        params = modelbased.utils.Params(
+        params = utils.utils.Params(
             max_iter=3000,
             eps=1e-10,
             beta=0.3,
@@ -216,7 +216,7 @@ class LaplaceNoise1d:
         return u, linloss
 
     def run(self, u_init):
-        params = modelbased.utils.Params(
+        params = utils.utils.Params(
             max_iter=10,
             mu_min=10,
             tau=2,

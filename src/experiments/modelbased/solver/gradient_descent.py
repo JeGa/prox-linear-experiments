@@ -1,7 +1,7 @@
 import logging
 
 
-def fixed_stepsize(x0, f, G, params):
+def fixed_stepsize(x0, f, G, params, verbose=False):
     """
     :param params: Object with the following members:
 
@@ -20,12 +20,13 @@ def fixed_stepsize(x0, f, G, params):
         loss = f(x)
         losses.append(loss)
 
-        logging.info("Iteration {}/{}, Loss = {}.".format(i, params.max_iter, loss))
+        if verbose:
+            logging.info("Iteration {}/{}, Loss = {}.".format(i, params.max_iter, loss))
 
     return x, losses
 
 
-def armijo(x0, f, G, params):
+def armijo(x0, f, G, params, verbose=False):
     """
     :param params: Object with the following members:
 
@@ -61,7 +62,8 @@ def armijo(x0, f, G, params):
 
         # No stepsize found with sufficiently large decrease.
         if terminate:
-            logging.info("Terminating since no suitable stepsize is found.")
+            if verbose:
+                logging.info("Terminating since no suitable stepsize is found.")
             break
 
         x = x_new
@@ -69,6 +71,7 @@ def armijo(x0, f, G, params):
         loss = f(x)
         losses.append(loss)
 
-        logging.info("Iteration {}/{}, Loss = {}, sigma = {}.".format(i, params.max_iter, loss, sigma))
+        if verbose:
+            logging.info("Iteration {}/{}, Loss = {}, sigma = {}.".format(i, params.max_iter, loss, sigma))
 
     return x, losses

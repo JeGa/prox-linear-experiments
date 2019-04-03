@@ -20,7 +20,7 @@ class ProxDescent:
         self.loss = loss
         self.solve_linearized_subproblem = solve_linearized_subproblem
 
-    def prox_descent(self, u_init):
+    def prox_descent(self, u_init, verbose=False):
         losses = []
 
         loss_init = self.loss(u_init)
@@ -44,7 +44,9 @@ class ProxDescent:
                 diff_loss = loss_old - loss_new
                 diff_lin = loss_old - linloss
 
-                logging.info("L(uk) = {}, L(uk+1) = {}, diff_u = {}, mu = {}.".format(loss_old, loss_new, diff_u, mu))
+                if verbose:
+                    logging.info(
+                        "L(uk)={:.6f}, L(uk+1)={:.6f}, diff_u={:.6f}, mu={}.".format(loss_old, loss_new, diff_u, mu))
 
                 if diff_u <= self.params.eps:
                     terminate = True
@@ -66,7 +68,8 @@ class ProxDescent:
             loss = self.loss(u)
             losses.append(loss)
 
-            logging.info("Iteration {}: {}".format(i, loss))
+            if verbose:
+                logging.info("Iteration {}/{}: {:.6f}".format(i, self.params.max_iter, loss))
 
             if terminate:
                 break
