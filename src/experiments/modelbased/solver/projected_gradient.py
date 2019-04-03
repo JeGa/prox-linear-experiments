@@ -66,7 +66,7 @@ def armijo(x0, f, G, proj, params):
         if stop:
             break
 
-        loss = f(x).squeeze()
+        loss = f(x)
         losses.append(loss)
 
     return x, losses

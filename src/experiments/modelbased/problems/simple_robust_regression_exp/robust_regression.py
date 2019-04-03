@@ -7,6 +7,7 @@ import modelbased.data.noise_from_model
 import modelbased.utils
 import modelbased.solver.prox_descent
 import modelbased.solver.projected_gradient
+import modelbased.solver.utils
 
 
 class LaplaceNoise1d:
@@ -36,7 +37,7 @@ class LaplaceNoise1d:
 
     def __init__(self, x, y_targets):
         self.x = x
-        self.yt = y_targets
+        self.y_targets = y_targets
 
     @staticmethod
     def f(u, x):
@@ -180,30 +181,13 @@ class LaplaceNoise1d:
             c = tau * Jfuk.T.dot(p) - uk
             loss = (1 / (2 * tau)) * (c ** 2).sum() + yhat.T.dot(p)
 
-            return loss
+            return loss.squeeze()
 
         def gradD(p):
             return Jfuk.dot(tau * Jfuk.T.dot(p) - uk) + yhat
 
-        def proj_max(v):
-            """
-            Projection of the given vector onto the unit ball under the max norm.
-            Alters the numpy array.
-
-            :param v: shape = (n, 1).
-
-            :return: shape = (n, 1).
-            """
-            for i in range(v.shape[0]):
-                if v[i] >= 1:
-                    v[i] = 1
-                if v[i] <= -1:
-                    v[i] = -1
-
-            return v
-
         # (N, 1).
-        p = proj_max(np.empty((N, 1)))
+        p = modelbased.solver.utils.proj_max(np.empty((N, 1)))
 
         params = modelbased.utils.Params(
             max_iter=3000,
@@ -213,13 +197,15 @@ class LaplaceNoise1d:
             tau=1e-2,
             sigmamin=1e-10)
 
-        p_new, losses = modelbased.solver.projected_gradient.armijo(p, D, gradD, proj_max, params)
+        p_new, losses = modelbased.solver.projected_gradient.armijo(p, D, gradD,
+                                                                    modelbased.solver.utils.proj_max,
+                                                                    params)
 
         # Get primal solution.
         u = uk - tau * Jfuk.T.dot(p_new)
 
-        logging.info("D(p0): {}".format(D(p).squeeze()))
-        logging.info("D(p*): {}".format(D(p_new).squeeze()))
+        logging.info("D(p0): {}".format(D(p)))
+        logging.info("D(p*): {}".format(D(p_new)))
 
         logging.info("P(uk): {}".format(P(uk)))
         logging.info("P(u*): {}".format(P(u)))
@@ -238,10 +224,10 @@ class LaplaceNoise1d:
             eps=1e-3)
 
         def loss(u):
-            return self.loss(u, self.x, self.yt)
+            return self.loss(u, self.x, self.y_targets).squeeze()
 
         def subsolver(u, tau):
-            return self.solve_linearized_subproblem(u, tau, self.x, self.yt)
+            return self.solve_linearized_subproblem(u, tau, self.x, self.y_targets)
 
         proxdescent = modelbased.solver.prox_descent.ProxDescent(params, loss, subsolver)
         u_new = proxdescent.prox_descent(u_init)

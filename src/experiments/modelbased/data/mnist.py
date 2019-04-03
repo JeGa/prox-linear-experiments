@@ -21,8 +21,7 @@ def one_hot(x, num_classes):
 def load(folder, training_samples=None, test_samples=None,
          training_batch_size=None, test_batch_size=None,
          one_hot_encoding=False):
-    input_transform = tf.Compose([tf.ToTensor(),
-                                  tf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    input_transform = tf.Compose([tf.ToTensor(), tf.Normalize([0.5], [0.5])])
 
     if one_hot_encoding:
         target_transform = tf.Lambda(lambda x: one_hot(x, 10))

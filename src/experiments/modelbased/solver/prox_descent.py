@@ -4,6 +4,18 @@ import logging
 
 class ProxDescent:
     def __init__(self, params, loss, solve_linearized_subproblem):
+        """
+        :param params: Object with parameters:
+            max_iter
+            mu_min
+            tau
+            sigma
+            eps
+
+        :param loss: Loss function l(u).
+        :param solve_linearized_subproblem: Function which solves the linearized subproblem.
+            With parameters  solve_linearized_subproblem(u, mu).
+        """
         self.params = params
         self.loss = loss
         self.solve_linearized_subproblem = solve_linearized_subproblem
@@ -59,4 +71,4 @@ class ProxDescent:
             if terminate:
                 break
 
-        return u
+        return u, losses

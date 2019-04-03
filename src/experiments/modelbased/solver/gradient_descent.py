@@ -37,6 +37,8 @@ def armijo(x0, f, G, params):
 
     x = x0
 
+    terminate = False
+
     for i in range(params.max_iter):
         grad = G(x)
         current_loss = f(x)
@@ -51,13 +53,22 @@ def armijo(x0, f, G, params):
             if new_loss - current_loss <= -sigma * params.gamma * (grad ** 2).sum():
                 break
 
+            if sigma <= 1e-8:
+                terminate = True
+                break
+
             j += 1
+
+        # No stepsize found with sufficiently large decrease.
+        if terminate:
+            logging.info("Terminating since no suitable stepsize is found.")
+            break
 
         x = x_new
 
         loss = f(x)
         losses.append(loss)
 
-        logging.info("Iteration {}/{}, Loss = {}.".format(i, params.max_iter, loss))
+        logging.info("Iteration {}/{}, Loss = {}, sigma = {}.".format(i, params.max_iter, loss, sigma))
 
     return x, losses
