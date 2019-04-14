@@ -4,37 +4,13 @@ import scipy.optimize
 import logging
 
 import modelbased.data.noise_from_model
-import modelbased.utils
+import modelbased.utils.misc
 import modelbased.solver.prox_descent
 import modelbased.solver.projected_gradient
 import modelbased.solver.utils
 
 
 class LaplaceNoise1d:
-    """
-    Simple 1d robust regression problem:
-
-        \min_u \sum_i^N \| f_i(u) - y_i \|_1
-
-    where u = (a,b) and
-
-        f_i(u) = \sum_j^P a_j \exp(-b_j x_i)
-
-    with data (x_i,y_i) \in R^2.
-
-    Solve the linearized sub-problem (at u^k).
-
-        \min_u \{ L(u) = \sum_i^N \| Jf_i(u^k)*u - \hat{y_i} \|_1 + \frac{1}{2\tau} \| u - u^k \|_2^2 \},
-
-    where \hat{y_i} = y_i - f_i(u^k) + Jf_i(u^k) u^k.
-
-    We use the proximal gradient method on the dual problem:
-
-        -\min_p \{ E(p) = \frac{1}{2 \tau} \| \tau Jf^T p - u^k \|_2^2 + \hat{y}^Tp \}
-
-        s.t. \| p \|_\infty \le 1.
-    """
-
     def __init__(self, x, y_targets):
         self.x = x
         self.y_targets = y_targets
@@ -59,44 +35,9 @@ class LaplaceNoise1d:
         return y
 
     @staticmethod
-    def h(y):
-        """
-        :param y: shape = (N, 1).
-
-        :return: h(y).
-        """
-        return np.abs(y).sum()
-
-    @staticmethod
-    def c(u, x, y_targets):
-        """
-        :param u: shape = (2P, 1).
-        :param x: shape = (N, 1).
-        :param y_targets: shape = (N, 1).
-
-        :return: c(u), shape = (N, 1).
-        """
-        y = LaplaceNoise1d.f(u, x)
-
-        c = y - y_targets
-
-        return c
-
-    @staticmethod
-    def loss(u, x, y_targets):
-        """
-        :param u: shape = (2P, 1).
-        :param x: shape = (N, 1).
-        :param y_targets: shape = (N, 1).
-
-        :return: L(w).
-        """
-        return LaplaceNoise1d.h(LaplaceNoise1d.c(u, x, y_targets))
-
-    @staticmethod
     def Jf(u, x):
         """
-        Jacobian of the model function at x.
+        Jacobian of the model function at u.
 
         :param u: shape = (2P, 1).
         :param x: shape = (N, 1).
@@ -152,6 +93,54 @@ class LaplaceNoise1d:
 
         return a, b, P
 
+    # TODO
+    @staticmethod
+    def L(x, y_targets):
+        """
+        Applies the element-wise l1-norm loss function.
+
+        :param x: shape = (N, 1).
+        :param y_targets: shape = (N, 1).
+
+        :return: L(x), shape = (N, 1).
+        """
+        return np.abs(x - y_targets)
+
+    @staticmethod
+    def h(y):
+        """
+        :param y: shape = (N, 1).
+
+        :return: h(y).
+        """
+        return np.abs(y).sum()
+
+    @staticmethod
+    def c(u, x, y_targets):
+        """
+        :param u: shape = (2P, 1).
+        :param x: shape = (N, 1).
+        :param y_targets: shape = (N, 1).
+
+        :return: c(u), shape = (N, 1).
+        """
+        y = LaplaceNoise1d.f(u, x)
+
+        c = y - y_targets
+
+        return c
+
+    @staticmethod
+    def loss(u, x, y_targets):
+        """
+        :param u: shape = (2P, 1).
+        :param x: shape = (N, 1).
+        :param y_targets: shape = (N, 1).
+
+        :return: L(w).
+        """
+        return LaplaceNoise1d.h(LaplaceNoise1d.c(u, x, y_targets))
+
     @staticmethod
     def solve_linearized_subproblem(uk, tau, x, y_targets):
         """
@@ -189,7 +178,7 @@ class LaplaceNoise1d:
         # (N, 1).
         p = modelbased.solver.utils.proj_max(np.empty((N, 1)))
 
-        params = utils.utils.Params(
+        params = modelbased.utils.misc.Params(
             max_iter=3000,
             eps=1e-10,
             beta=0.3,
@@ -216,7 +205,7 @@ class LaplaceNoise1d:
         return u, linloss
 
     def run(self, u_init):
-        params = utils.utils.Params(
+        params = modelbased.utils.misc.Params(
             max_iter=10,
             mu_min=10,
             tau=2,
@@ -230,7 +219,7 @@ class LaplaceNoise1d:
             return self.solve_linearized_subproblem(u, tau, self.x, self.y_targets)
 
         proxdescent = modelbased.solver.prox_descent.ProxDescent(params, loss, subsolver)
-        u_new = proxdescent.prox_descent(u_init)
+        u_new, losses = proxdescent.prox_descent(u_init)
 
         return u_new
 
@@ -263,8 +252,8 @@ def run():
 
     u_init = 0.1 * np.ones((2 * P_model, 1))
     u_new = reg.run(u_init)
-    y_predict = reg.f(u_new, x)
 
+    y_predict = reg.f(u_new, x)
     y_init = reg.f(u_init, x)
 
     plot(x, y, y_noisy, y_predict, y_init)

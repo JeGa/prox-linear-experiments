@@ -273,7 +273,7 @@ class ClassificationMNIST:
 
 
 def run():
-    cls = ClassificationMNIST(10, 5)
+    cls = ClassificationMNIST(None, 5)
 
     # cls.optimize_gd(10)
     cls.optimize_pd(1)
