@@ -1,6 +1,8 @@
 import numpy as np
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 class ProxDescent:
     def __init__(self, params, loss, solve_linearized_subproblem):
@@ -32,10 +34,12 @@ class ProxDescent:
         u = u_init
 
         for i in range(self.params.max_iter):
+            num_subproblem = 0
+
             while True:
                 loss_old = self.loss(u)
 
-                u_new, linloss = self.solve_linearized_subproblem(u, mu ** -1)
+                u_new, linloss = self.solve_linearized_subproblem(u, mu)
 
                 loss_new = self.loss(u_new)
 
@@ -45,14 +49,16 @@ class ProxDescent:
                 diff_lin = loss_old - linloss
 
                 if verbose:
-                    logging.info(
-                        "L(uk)={:.6f}, L(uk+1)={:.6f}, diff_u={:.6f}, mu={}.".format(loss_old, loss_new, diff_u, mu))
+                    logger.info(
+                        "Subproblem {}: L(uk)={:.6f}, L(uk+1)={:.6f}, diff_u={:.6f}, mu={}.".format(num_subproblem,
+                                                                                                    loss_old, loss_new,
+                                                                                                    diff_u, mu))
 
                 if diff_u <= self.params.eps:
                     terminate = True
                     break
 
-                if mu >= 1e6:
+                if mu >= 1e12:
                     terminate = True
                     break
 
@@ -65,11 +71,13 @@ class ProxDescent:
                 else:
                     mu = self.params.tau * mu
 
+                num_subproblem += 1
+
             loss = self.loss(u)
             losses.append(loss)
 
             if verbose:
-                logging.info("Iteration {}/{}: {:.6f}".format(i, self.params.max_iter, loss))
+                logger.info("Iteration {}/{}: {:.6f}".format(i, self.params.max_iter, loss))
 
             if terminate:
                 break

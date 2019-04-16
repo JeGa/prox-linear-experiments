@@ -1,5 +1,7 @@
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 def fixed_stepsize(f, net, params):
     """
@@ -30,6 +32,6 @@ def fixed_stepsize(f, net, params):
         loss = f().item()
         losses.append(loss)
 
-        logging.info("Iteration {}/{}, Loss = {}.".format(i, params.max_iter, loss))
+        logger.info("Iteration {}/{}, Loss = {}.".format(i, params.max_iter, loss))
 
     return losses

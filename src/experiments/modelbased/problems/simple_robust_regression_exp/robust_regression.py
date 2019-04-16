@@ -9,6 +9,8 @@ import modelbased.solver.prox_descent
 import modelbased.solver.projected_gradient
 import modelbased.solver.utils
 
+logger = logging.getLogger(__name__)
+
 
 class LaplaceNoise1d:
     def __init__(self, x, y_targets):
@@ -93,7 +95,6 @@ class LaplaceNoise1d:
 
         return a, b, P
 
-    # TODO
     @staticmethod
     def L(x, y_targets):
         """
@@ -107,51 +108,67 @@ class LaplaceNoise1d:
         return np.abs(x - y_targets)
 
     @staticmethod
-    def h(y):
+    def h(a, y_targets):
         """
-        :param y: shape = (N, 1).
+        :param a: shape = (N, 1).
+        :param y_targets: shape = (N, 1).
 
-        :return: h(y).
+        :return: h(a).
         """
-        return np.abs(y).sum()
+        N = a.shape[0]
+
+        return (1 / N) * LaplaceNoise1d.L(a, y_targets).sum()
 
     @staticmethod
-    def c(u, x, y_targets):
+    def c(u, x):
         """
+        Just wraps the model function.
+
         :param u: shape = (2P, 1).
         :param x: shape = (N, 1).
-        :param y_targets: shape = (N, 1).
 
         :return: c(u), shape = (N, 1).
         """
-        y = LaplaceNoise1d.f(u, x)
-
-        c = y - y_targets
-
-        return c
+        return LaplaceNoise1d.f(u, x)
 
     @staticmethod
-    def loss(u, x, y_targets):
+    def reg(u, lam):
+        """
+        Squared l2-norm regularizer.
+
+        :param u: shape = (2P, 1).
+        :param lam: Scalar weight factor.
+
+        :return: lam * 0.5 * norm(u)**2.
+        """
+        return lam * 0.5 * (u ** 2).sum()
+
+    @staticmethod
+    def loss(u, x, y_targets, lam):
         """
         :param u: shape = (2P, 1).
         :param x: shape = (N, 1).
         :param y_targets: shape = (N, 1).
+        :param lam: Scalar regularizer weight factor.
 
         :return: L(w).
         """
-        return LaplaceNoise1d.h(LaplaceNoise1d.c(u, x, y_targets))
+        return LaplaceNoise1d.h(LaplaceNoise1d.c(u, x), y_targets).squeeze() + LaplaceNoise1d.reg(u, lam).squeeze()
 
     @staticmethod
-    def solve_linearized_subproblem(uk, tau, x, y_targets):
+    def solve_linearized_subproblem(uk, tau, x, y_targets, lam):
         """
         Solve the inner linearized subproblem using gradient ascent on the dual problem.
 
         :param uk: shape = (2P, 1).
         :param tau: Proximal weight of the subproblem.
+
         :param x: shape = (N, 1).
         :param y_targets: shape = (N, 1).
 
-        :return: Approximate solution \argmin L(u).
+        :param lam: Scalar regularizer weight factor.
+
+        :return: Solution argmin L(u).
         """
         N = x.shape[0]
 
@@ -159,67 +176,73 @@ class LaplaceNoise1d:
         Jfuk = LaplaceNoise1d.Jf(uk, x)
 
         # (N, 1). Inner constant part per iteration.
-        yhat = y_targets - LaplaceNoise1d.f(uk, x) + Jfuk.dot(uk)
+        yhat = LaplaceNoise1d.f(uk, x) - Jfuk.dot(uk)
 
         # Primal problem.
-        def P(u):
-            return LaplaceNoise1d.h(Jfuk.dot(u) - yhat) + (1 / (2 * tau)) * ((u - uk) ** 2).sum()
+        def P(_u):
+            return LaplaceNoise1d.h(Jfuk.dot(_u) + yhat, y_targets) + \
+                   LaplaceNoise1d.reg(_u, lam) + \
+                   (tau / 2) * ((_u - uk) ** 2).sum()
 
         # Dual problem.
-        def D(p):
-            c = tau * Jfuk.T.dot(p) - uk
-            loss = (1 / (2 * tau)) * (c ** 2).sum() + yhat.T.dot(p)
+        def D(_p):
+            c = -Jfuk.T.dot(_p) + tau * uk
+            loss = (1 / (2 * (lam + tau))) * (c ** 2).sum() + (y_targets - yhat).T.dot(_p)
 
             return loss.squeeze()
 
-        def gradD(p):
-            return Jfuk.dot(tau * Jfuk.T.dot(p) - uk) + yhat
+        def gradD(_p):
+            return (1 / (lam + tau)) * Jfuk.dot(Jfuk.T.dot(_p) - tau * uk) + y_targets - yhat
+
+        def proj(_x):
+            return modelbased.solver.utils.proj_max(_x, 1 / N)
 
         # (N, 1).
-        p = modelbased.solver.utils.proj_max(np.empty((N, 1)))
+        p = proj(np.empty((N, 1)))
 
         params = modelbased.utils.misc.Params(
-            max_iter=3000,
-            eps=1e-10,
+            max_iter=5000,
+            eps=1e-6,
             beta=0.3,
             gamma=1e-2,
             tau=1e-2,
-            sigmamin=1e-10)
+            sigmamin=1e-6)
 
-        p_new, losses = modelbased.solver.projected_gradient.armijo(p, D, gradD,
-                                                                    modelbased.solver.utils.proj_max,
-                                                                    params)
+        p_new, losses = modelbased.solver.projected_gradient.armijo(p, D, gradD, proj, params)
 
         # Get primal solution.
-        u = uk - tau * Jfuk.T.dot(p_new)
+        u = (1 / (lam + tau)) * (tau * uk - Jfuk.T.dot(p_new))
 
-        logging.info("D(p0): {}".format(D(p)))
-        logging.info("D(p*): {}".format(D(p_new)))
+        logger.info("D(p0): {}".format(D(p)))
+        logger.info("D(p*): {}".format(D(p_new)))
 
-        logging.info("P(uk): {}".format(P(uk)))
-        logging.info("P(u*): {}".format(P(u)))
+        logger.info("P(uk): {}".format(P(uk)))
+        logger.info("P(u*): {}".format(P(u)))
 
         # Loss of the linearized sub-problem without the proximal term.
-        linloss = LaplaceNoise1d.h(Jfuk.dot(u) - yhat)
+        linloss = LaplaceNoise1d.h(Jfuk.dot(u) + yhat, y_targets) + LaplaceNoise1d.reg(u, lam)
 
         return u, linloss
 
     def run(self, u_init):
         params = modelbased.utils.misc.Params(
-            max_iter=10,
-            mu_min=10,
+            max_iter=50,
+            mu_min=0.01,
             tau=2,
-            sigma=0.8,
-            eps=1e-3)
+            sigma=0.7,
+            eps=1e-6)
+
+        lam = 0.01
 
         def loss(u):
-            return self.loss(u, self.x, self.y_targets).squeeze()
+            return self.loss(u, self.x, self.y_targets, lam)
 
         def subsolver(u, tau):
-            return self.solve_linearized_subproblem(u, tau, self.x, self.y_targets)
+            return self.solve_linearized_subproblem(u, tau, self.x, self.y_targets, lam)
 
         proxdescent = modelbased.solver.prox_descent.ProxDescent(params, loss, subsolver)
-        u_new, losses = proxdescent.prox_descent(u_init)
+
+        u_new, losses = proxdescent.prox_descent(u_init, verbose=True)
 
         return u_new
 
@@ -229,22 +252,29 @@ def plot(x, y, y_noisy, y_predict, y_init):
     plt.scatter(x, y_noisy, marker='x')
     plt.plot(x, y_predict, label='predict')
     plt.plot(x, y_init, label='init')
+
+    plt.minorticks_on()
+    plt.grid(which='major', linestyle='-', linewidth=0.1)
+
     plt.legend()
+
     plt.show()
 
 
 def run():
-    N = 300
+    N = 200
     P_gen = 10
     P_model = 20
+
+    np.random.seed(1112)
 
     # Generate some noisy data.
     a = 2 * np.random.random((P_gen, 1))
     b = np.random.random((P_gen, 1))
     u = np.concatenate((a, b), axis=0)
 
-    def fun(x):
-        return LaplaceNoise1d.f(u, x)
+    def fun(_x):
+        return LaplaceNoise1d.f(u, _x)
 
     x, y_noisy, y = modelbased.data.noise_from_model.generate(N, fun)
 
