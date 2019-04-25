@@ -3,6 +3,11 @@ import torch.nn.functional as F
 
 
 class BaseNetwork(torch.nn.Module):
+    def __init__(self):
+        super(BaseNetwork, self).__init__()
+
+        self.current_u = None
+
     def numparams(self):
         return sum(p.numel() for p in self.parameters())
 
@@ -20,6 +25,7 @@ class BaseNetwork(torch.nn.Module):
     @params.setter
     def params(self, u):
         u = u.squeeze()
+
         with torch.no_grad():
             def f(from_index, to_index, p):
                 p.copy_(u[from_index:to_index].view(p.shape))
@@ -27,11 +33,29 @@ class BaseNetwork(torch.nn.Module):
             self._iter_params(f)
 
     def param_eval(self, u):
+        """
+        Use this in a 'with' statement to use the network with the given parameters and reset the parameters on exit
+        to the old ones.
+
+        For example:
+
+        ::
+
+            with self.param_eval(u):
+                return self.forward(x)
+
+        :param u: shape (d, 1) where d is the number of parameters.
+
+        :return: self.
+        """
         self.current_u = self.params
         self.params = u
         return self
 
     def __enter__(self):
+        """
+        Required to use the 'with' statement.
+        """
         pass
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -61,6 +85,47 @@ class BaseNetwork(torch.nn.Module):
 
             from_index += size
 
+    def f(self, u, x, set_param=False):
+        if set_param:
+            self.params = u
+            return self.forward(x)
+        else:
+            with self.param_eval(u):
+                return self.forward(x)
+
+    def Jacobian(self, u, x, retain_graph=False):
+        """
+        :param u: shape = (d, 1).
+        :param x: Training input, shape depends on network architecture.
+
+        :param retain_graph: If False, does not retain graph after call.
+
+        :return: Jacobian with shape (c*n, d) in row-major order, where c is the output dimension and n is the number of
+            samples.
+        """
+        with self.param_eval(u):
+            self.zero_grad()
+
+            y = self.forward(x)
+
+            ysize = y.numel()
+            J = torch.empty(ysize, self.numparams())
+
+            for i, yi in enumerate(y):  # Samples.
+                for j, c in enumerate(yi):  # Classes.
+
+                    # Free the graph at the last backward call.
+                    if i == y.size(0) - 1 and j == yi.size(0) - 1:
+                        c.backward(retain_graph=retain_graph)
+                    else:
+                        c.backward(retain_graph=True)
+
+                    J[i * y.size()[1] + j] = self.gradient.squeeze()
+
+                    self.zero_grad()
+
+            return J.detach()
+
 
 class SimpleConvNetMNIST(BaseNetwork):
     def __init__(self, h):
@@ -74,8 +139,6 @@ class SimpleConvNetMNIST(BaseNetwork):
         self.fc2 = torch.nn.Linear(50, 10)
 
         self.h = h
-
-        self.current_u = None
 
     def forward(self, x):
         x = self.h(F.max_pool2d(self.conv1(x), 2))

@@ -1,4 +1,6 @@
 import os
+
+import torch
 from matplotlib import pyplot as plt
 import datetime
 
@@ -25,3 +27,18 @@ def plot_losses(losses, filename):
 
 def append_time(name):
     return name + '_' + datetime.datetime.now().strftime('%d-%m-%y_%H:%M:%S')
+
+
+def one_hot(x, num_classes, hot=1, off=0):
+    """
+    :param x: Torch tensor with label for one sample.
+    :param num_classes: Integer with total number of classes.
+    :param hot: Scalar indicating hot class.
+    :param off: Scalar indicating all not hot classes.
+
+    :return: Torch tensor of shape (classes) with one-hot encoding.
+    """
+    onehot = off * torch.ones(num_classes)
+    onehot[x] = hot
+
+    return onehot

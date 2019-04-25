@@ -1,30 +1,28 @@
-import torch
 import torch.utils.data as data
 import torchvision.transforms as tf
 import torchvision.datasets as datasets
 import logging
 
 
-def one_hot(x, num_classes):
-    """
-    :param x: Torch tensor with label for one sample.
-    :param num_classes: Integer with total number of classes.
-
-    :return: Torch tensor of shape (classes) with one-hot encoding.
-    """
-    onehot = torch.zeros(num_classes)
-    onehot[x] = 1
-
-    return onehot
-
-
 def load(folder, training_samples=None, test_samples=None,
          training_batch_size=None, test_batch_size=None,
-         one_hot_encoding=False):
+         one_hot_encoding=None):
+    """
+    :param folder: Location of mnist data.
+    :param training_samples: If only a subset of the training data is required.
+    :param test_samples: If only a subset of the test data is required.
+    :param training_batch_size: Batch size for training data.
+    :param test_batch_size: Batch size for test data.
+
+    :param one_hot_encoding: Function which, if not None, is applied to the targets.
+        ``For example one_hot_encoding=lambda x: utils.misc.one_hot(x, 10)``.
+
+    :return: trainloader, testloader, training_batch_size, test_batch_size, classes.
+    """
     input_transform = tf.Compose([tf.ToTensor(), tf.Normalize([0.5], [0.5])])
 
     if one_hot_encoding:
-        target_transform = tf.Lambda(lambda x: one_hot(x, 10))
+        target_transform = tf.Lambda(one_hot_encoding)
     else:
         target_transform = None
 

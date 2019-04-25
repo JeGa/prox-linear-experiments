@@ -3,38 +3,48 @@ import modelbased.problems.mnist_classification_nn.nn as mnist_nn
 import modelbased.utils.trainrun
 import modelbased.utils.misc
 import modelbased.utils.yaml
+import modelbased.utils.misc
 
-import modelbased.solver.torch_gradient_descent
-import modelbased.solver.gradient_descent
-import modelbased.solver.prox_descent
-import modelbased.solver.utils
-import modelbased.solver.projected_gradient
+import modelbased.solvers.torch_gradient_descent
+import modelbased.solvers.gradient_descent
+import modelbased.solvers.prox_descent
+import modelbased.solvers.utils
+import modelbased.solvers.projected_gradient
 
 import torch
 from torch.nn import functional as F
+
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
 
 
-class ClassificationMNIST:
+class l1normNoreg:
     def __init__(self, subset, batchsize):
-        trainloader, _, _, _, _ = mnist_data.load('datasets/mnist', subset, 10, batchsize, 10, one_hot_encoding=True)
+        transform = lambda x: modelbased.utils.misc.one_hot(x, 10)
+
+        trainloader, _, _, _, _ = mnist_data.load('datasets/mnist', subset, 10, batchsize, 10,
+                                                  one_hot_encoding=transform)
 
         self.trainloader = trainloader
         self.net = mnist_nn.SimpleConvNetMNIST(F.relu)
 
-    def f(self, u, x, set_param=False):
-        if set_param:
-            self.net.params = u
-            return self.net(x)
-        else:
-            with self.net.param_eval(u):
-                return self.net(x)
-
-    def h(self, y, tensor=False):
+    def L(self, u, x, yt, set_param=False, tensor=False):
         """
-        :param y: shape = (N*c, 1).
+        :param u: shape (M, 1).
+        :param x: shape = (batchsize, channels, ysize, xsize).
+        :param yt: shape = (batchsize, classes).
+        :param set_param: See function c.
+        :param tensor: See function h.
+
+        :return: l1 norm loss.
+        """
+        return self.h(self.c(u, x, yt, set_param=set_param), tensor=tensor)
+
+    @staticmethod
+    def h(y, tensor=False):
+        """
+        :param y: shape = (c*N, 1).
         :param tensor: If true, returns tensor, if False returns scalar.
 
         :return: h(y).
@@ -53,24 +63,12 @@ class ClassificationMNIST:
 
         :return: c(u), shape = (N*c, 1) in row-major order.
         """
-        return (self.f(u, x, set_param=set_param) - yt).view(-1, 1)
-
-    def loss(self, u, x, yt, set_param=False, tensor=False):
-        """
-        :param u: shape (M, 1).
-        :param x: shape = (batchsize, channels, ysize, xsize).
-        :param yt: shape = (batchsize, classes).
-        :param set_param: See function c.
-        :param tensor: See function h.
-
-        :return: l1 norm loss.
-        """
-        return self.h(self.c(u, x, yt, set_param=set_param), tensor=tensor)
+        return (self.net.f(u, x, set_param=set_param) - yt).view(-1, 1)
 
     def gradient(self, u, x, yt):
         self.net.zero_grad()
 
-        loss = self.loss(u, x, yt, set_param=True, tensor=True)
+        loss = self.L(u, x, yt, set_param=True, tensor=True)
 
         loss.backward()
 
@@ -126,10 +124,10 @@ class ClassificationMNIST:
         N = yt.numel()
 
         with torch.enable_grad():
-            y = self.f(uk, x, set_param=True)
+            y = self.net.f(uk, x, set_param=True)
 
             # (batchsize*classes, M).
-            Jfuk = ClassificationMNIST.Jf(self.net, y, retain_graph=True)
+            Jfuk = l1normNoreg.Jf(self.net, y, retain_graph=True)
 
         yhat = (yt - y).view(-1, 1) + Jfuk.mm(uk)
 
@@ -161,9 +159,9 @@ class ClassificationMNIST:
             tau=1e-2,
             sigmamin=1e-10)
 
-        p_new, losses = modelbased.solver.projected_gradient.armijo(p, D, gradD,
-                                                                    modelbased.solver.utils.proj_max,
-                                                                    params)
+        p_new, losses = modelbased.solvers.projected_gradient.armijo(p, D, gradD,
+                                                                     modelbased.solvers.utils.proj_max,
+                                                                     params)
 
         p_new = torch.from_numpy(p_new)
 
@@ -194,12 +192,12 @@ class ClassificationMNIST:
             u_init = self.net.params.detach()
 
             def loss(u):
-                return self.loss(u, x, yt)
+                return self.L(u, x, yt)
 
             def subsolver(u, tau):
                 return self.solve_linearized_subproblem(u, tau, x, yt)
 
-            proxdescent = modelbased.solver.prox_descent.ProxDescent(params, loss, subsolver)
+            proxdescent = modelbased.solvers.prox_descent.ProxDescent(params, loss, subsolver)
 
             with torch.no_grad():
                 u_new, losses = proxdescent.prox_descent(u_init)
@@ -228,7 +226,7 @@ class ClassificationMNIST:
 
         def step_fun(x, yt):
             def f(u):
-                return self.loss(torch.from_numpy(u), x, yt)
+                return self.L(torch.from_numpy(u), x, yt)
 
             def G(u):
                 return self.gradient(torch.from_numpy(u), x, yt).numpy()
@@ -236,9 +234,9 @@ class ClassificationMNIST:
             u_init = self.net.params.detach().numpy()
 
             if armijo:
-                u_new, losses = modelbased.solver.gradient_descent.armijo(u_init, f, G, params)
+                u_new, losses = modelbased.solvers.gradient_descent.armijo(u_init, f, G, params)
             else:
-                u_new, losses = modelbased.solver.gradient_descent.fixed_stepsize(u_init, f, G, params)
+                u_new, losses = modelbased.solvers.gradient_descent.fixed_stepsize(u_init, f, G, params)
 
             self.net.params = torch.from_numpy(u_new)
 
@@ -273,7 +271,7 @@ class ClassificationMNIST:
 
 
 def run():
-    cls = ClassificationMNIST(None, 5)
+    cls = l1normNoreg(None, 5)
 
     # cls.optimize_gd(10)
     cls.optimize_pd(1)
