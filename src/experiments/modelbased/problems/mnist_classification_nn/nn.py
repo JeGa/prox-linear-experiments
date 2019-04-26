@@ -1,6 +1,9 @@
 import torch
 import torch.nn.functional as F
 
+import scipy.optimize
+import numpy as np
+
 
 class BaseNetwork(torch.nn.Module):
     def __init__(self):
@@ -20,7 +23,7 @@ class BaseNetwork(torch.nn.Module):
 
         self._iter_params(f)
 
-        return parameters.unsqueeze(1)
+        return parameters.unsqueeze(1).detach()
 
     @params.setter
     def params(self, u):
@@ -120,11 +123,43 @@ class BaseNetwork(torch.nn.Module):
                     else:
                         c.backward(retain_graph=True)
 
-                    J[i * y.size()[1] + j] = self.gradient.squeeze()
+                    J[i * y.size(1) + j] = self.gradient.squeeze()
 
                     self.zero_grad()
 
             return J.detach()
+
+    # def _check_grad(self, x):
+    #     err = []
+    #
+    #     for i in range(x.shape[0]):
+    #         for j in range(10):
+    #             def f(u):
+    #                 with torch.no_grad():
+    #                     u = torch.as_tensor(u)
+    #                     u = u.unsqueeze(1)
+    #
+    #                     fi = self.f(u, x)[i, j].squeeze().item()
+    #
+    #                 return fi
+    #
+    #             def g(u):
+    #                 u = torch.as_tensor(u)
+    #                 u = u.unsqueeze(1)
+    #
+    #                 Ji = self.Jacobian(u, x)[i + j].squeeze().detach().numpy()
+    #
+    #                 return Ji
+    #
+    #             u0 = self.params.squeeze().detach().numpy()
+    #
+    #             err.append(scipy.optimize.check_grad(f, g, u0))
+    #             print(err)
+    #
+    #     print(np.mean(err))
+
+    def forward(self, x):
+        raise NotImplementedError()
 
 
 class SimpleConvNetMNIST(BaseNetwork):

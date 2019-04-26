@@ -1,5 +1,7 @@
 import numpy as np
 
+import modelbased.solvers.utils
+
 
 def fixed_stepsize(x0, f, G, proj, params):
     """
@@ -22,7 +24,7 @@ def fixed_stepsize(x0, f, G, proj, params):
     return x, losses
 
 
-def armijo(x0, f, G, proj, params):
+def armijo(x0, f, G, proj, params, tensor_type='numpy'):
     """
     :param params: Object with the following members:
 
@@ -32,7 +34,11 @@ def armijo(x0, f, G, proj, params):
         gamma
         tau
         sigmamin
+
+    :param tensor_type: 'numpy' or 'pytorch'.
     """
+    t, dot = modelbased.solvers.utils.ttype(tensor_type)
+
     losses = []
     stop = False
 
@@ -57,7 +63,7 @@ def armijo(x0, f, G, proj, params):
                 stop = True
                 break
 
-            if f(x + sigma * dk) - f(x) <= params.gamma * sigma * grad.T.dot(dk):
+            if f(x + sigma * dk) - f(x) <= params.gamma * sigma * dot(t(grad), dk):
                 x = x + sigma * dk
                 break
 

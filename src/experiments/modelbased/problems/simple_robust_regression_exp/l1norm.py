@@ -168,7 +168,7 @@ class l1norm:
 
         :param lam: Scalar regularizer weight factor.
 
-        :return: Solution argmin L_lin(u).
+        :return: Solution argmin L_lin(u), loss of linearized subproblem without proximal term.
         """
         N = x.shape[0]
 
