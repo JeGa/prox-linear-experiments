@@ -1,10 +1,6 @@
 import torch
 from torch.nn import functional as F
-import torchvision.utils
 import logging
-import numpy as np
-import math
-import os
 
 import modelbased.data.mnist as mnist_data
 import modelbased.problems.mnist_classification_nn.nn as mnist_nn
@@ -14,8 +10,6 @@ import modelbased.utils.trainrun
 import modelbased.solvers.utils
 import modelbased.solvers.projected_gradient
 import modelbased.solvers.prox_descent
-
-import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -180,12 +174,12 @@ class SVM_OVA:
     def run(self):
         params = modelbased.utils.misc.Params(
             max_iter=1,
-            mu_min=0.01,
+            mu_min=1,
             tau=2,
             sigma=0.7,
             eps=1e-6)
 
-        num_epochs = 2
+        num_epochs = 10
         lam = 0.01
 
         def step_fun(x, yt):
@@ -219,53 +213,45 @@ class SVM_OVA:
 
     def predict(self, u, x):
         # (n, c).
+        x = x.to(self.net.device)
+
         y = self.net.f(u, x)
 
         return y.argmax(1)
 
 
-def plot(x, y, yt, nrow=6):
-    """
-    Plot the given x images in a grid with the corresponding predicted and ground truth labels.
+def get_samples(classificator, num_samples):
+    data_x = ()
+    data_yt = ()
 
-    :param x: shape = (n, channels, ysize, xsize).
-    :param y: shape = (c).
-    :param yt: shape = (c).
-    :param nrow: Number of images per row.
-    """
-    n = x.size(0)
+    samples = 0
+    for x, yt in classificator.trainloader:
+        data_x += (x,)
+        data_yt += (yt,)
 
-    if n < nrow:
-        nrow = n
+        samples += x.size(0)
 
-    img_data = np.transpose(torchvision.utils.make_grid(x, nrow=nrow, padding=0, normalize=True), (1, 2, 0))
+        if samples >= num_samples:
+            break
 
-    plt.figure()
+    if samples > num_samples:
+        samples = num_samples
 
-    plt.imshow(img_data)
-    plt.tight_layout()
+    x = torch.cat(data_x[0:samples], 0)
+    yt = torch.cat(data_yt[0:samples], 0)
 
-    grid_y = math.ceil(n / nrow)
-
-    for i in range(1, grid_y + 1):
-        for j in range(1, nrow + 1):
-            plt.text(j * 28 - 4, i * 28 - 7, str(yt[(i - 1) * nrow + j - 1].item()), size=16, color='red')
-            plt.text(j * 28 - 4, i * 28 - 1, str(y[(i - 1) * nrow + j - 1].item()), size=16, color='yellow')
-
-            if (i - 1) * nrow + j == n:
-                break
-
-    filename = modelbased.utils.misc.append_time('mnist_results')
-    plt.savefig(os.path.join('modelbased', 'results', 'plots', filename + '.png'))
+    return x, yt
 
 
 def run():
-    cls = SVM_OVA(30, 5)
+    classificator = SVM_OVA(30, 5)
 
-    u_new = cls.run()
+    u_new = classificator.run()
 
-    for x, yt in cls.trainloader:
-        yt_predict = yt.argmax(1)
-        y_predict = cls.predict(u_new, x)
+    # Predict with some training data.
+    x, yt = get_samples(classificator, 36)
 
-        plot(x, y_predict, yt_predict)
+    yt_predict = yt.argmax(1)
+    y_predict = classificator.predict(u_new, x)
+
+    modelbased.utils.misc.plot_grid(x, y_predict, yt_predict)

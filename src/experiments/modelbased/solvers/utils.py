@@ -7,6 +7,7 @@ def proj_max(v, to=1):
     Alters the numpy array.
 
     :param v: shape = (n, 1).
+    :param to: Scalar, target value of the box constraint [-to, to].
 
     :return: shape = (n, 1).
     """

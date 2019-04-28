@@ -9,8 +9,12 @@ from problems.mnist_classification_nn.l1norm_noreg import run as run_cls_l1
 from problems.mnist_classification_nn.svm_ova import run as run_cls_svm
 from problems.spirals_classification.linear_svm import run as run_spirals
 
+import modelbased.utils.misc
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(funcName)s - %(message)s")
+
+    modelbased.utils.misc.make_folders()
 
     # run_spirals()
     run_cls_svm()

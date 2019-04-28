@@ -1,7 +1,12 @@
 import datetime
 import os
 import torch
+import torchvision.utils
+import numpy as np
+import math
 from matplotlib import pyplot as plt
+
+import modelbased.utils.global_config as cfg
 
 
 class Params:
@@ -9,9 +14,13 @@ class Params:
         self.__dict__.update(params)
 
 
-def plot_losses(losses, filename):
-    folder = 'modelbased/results/plots'
+def make_folders():
+    for item in cfg.folders.values():
+        if not os.path.exists(item):
+            os.mkdir(item)
 
+
+def plot_losses(losses, filename):
     plt.figure()
     plt.plot(range(len(losses)), losses, linewidth=0.4)
 
@@ -19,9 +28,44 @@ def plot_losses(losses, filename):
     plt.grid(which='major', linestyle='-', linewidth=0.1)
     plt.title(filename)
 
-    filepath = os.path.join(folder, filename + '.pdf')
+    filepath = os.path.join(cfg.folders['plots'], filename + '.pdf')
 
     plt.savefig(filepath, bbox_inches='tight')
+
+
+def plot_grid(x, y, yt, nrow=6):
+    """
+    Plot the given x images in a grid with the corresponding predicted and ground truth labels.
+
+    :param x: Torch tensor with shape = (n, channels, ysize, xsize).
+    :param y: Torch tensor with shape = (c).
+    :param yt: Torch tensor with shape = (c).
+    :param nrow: Number of images per row.
+    """
+    n = x.size(0)
+
+    if n < nrow:
+        nrow = n
+
+    img_data = np.transpose(torchvision.utils.make_grid(x, nrow=nrow, padding=0, normalize=True), (1, 2, 0))
+
+    plt.figure()
+
+    plt.imshow(img_data)
+    plt.tight_layout()
+
+    grid_y = math.ceil(n / nrow)
+
+    for i in range(1, grid_y + 1):
+        for j in range(1, nrow + 1):
+            plt.text(j * 28 - 4, i * 28 - 7, str(yt[(i - 1) * nrow + j - 1].item()), size=16, color='red')
+            plt.text(j * 28 - 4, i * 28 - 1, str(y[(i - 1) * nrow + j - 1].item()), size=16, color='yellow')
+
+            if (i - 1) * nrow + j == n:
+                break
+
+    filename = append_time('mnist_results')
+    plt.savefig(os.path.join(cfg.folders['plots'], filename + '.pdf'))
 
 
 def append_time(name):

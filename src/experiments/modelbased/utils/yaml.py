@@ -1,11 +1,11 @@
 import yaml
 import os
 
+import modelbased.utils.global_config as cfg
+
 
 def write(filename, losses, params):
-    folder = 'modelbased/results/data'
-
-    filepath = os.path.join(folder, filename)
+    filepath = os.path.join(cfg.folders['data'], filename + '.yml')
 
     with open(filepath, 'w') as f:
         to_write = []
