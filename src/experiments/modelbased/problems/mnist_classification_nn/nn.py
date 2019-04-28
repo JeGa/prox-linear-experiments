@@ -6,17 +6,18 @@ import numpy as np
 
 
 class BaseNetwork(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, device):
         super(BaseNetwork, self).__init__()
 
         self.current_u = None
+        self.device = device
 
     def numparams(self):
         return sum(p.numel() for p in self.parameters())
 
     @property
     def params(self):
-        parameters = torch.empty(self.numparams())
+        parameters = torch.empty(self.numparams(), device=self.device)
 
         def f(from_index, to_index, p):
             parameters[from_index:to_index] = p.view(-1)
@@ -69,7 +70,7 @@ class BaseNetwork(torch.nn.Module):
 
     @property
     def gradient(self):
-        g = torch.empty(self.numparams())
+        g = torch.empty(self.numparams(), device=self.device)
 
         def f(from_index, to_index, p):
             g[from_index:to_index] = p.grad.view(-1)
@@ -112,7 +113,7 @@ class BaseNetwork(torch.nn.Module):
             y = self.forward(x)
 
             ysize = y.numel()
-            J = torch.empty(ysize, self.numparams())
+            J = torch.empty(ysize, self.numparams(), device=self.device)
 
             for i, yi in enumerate(y):  # Samples.
                 for j, c in enumerate(yi):  # Classes.
@@ -163,8 +164,8 @@ class BaseNetwork(torch.nn.Module):
 
 
 class SimpleConvNetMNIST(BaseNetwork):
-    def __init__(self, h):
-        super(SimpleConvNetMNIST, self).__init__()
+    def __init__(self, h, device):
+        super(SimpleConvNetMNIST, self).__init__(device)
 
         self.output_dim = 10
 
@@ -174,6 +175,8 @@ class SimpleConvNetMNIST(BaseNetwork):
         self.fc2 = torch.nn.Linear(50, 10)
 
         self.h = h
+
+        self.to(self.device)
 
     def forward(self, x):
         x = self.h(F.max_pool2d(self.conv1(x), 2))

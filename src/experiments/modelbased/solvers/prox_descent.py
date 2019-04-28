@@ -1,6 +1,8 @@
 import numpy as np
 import logging
 
+import modelbased.solvers.utils
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,9 @@ class ProxDescent:
         self.loss = loss
         self.solve_linearized_subproblem = solve_linearized_subproblem
 
-    def prox_descent(self, u_init, verbose=False):
+    def prox_descent(self, u_init, tensor_type='numpy', verbose=False):
+        t, dot, sqrt = modelbased.solvers.utils.ttype(tensor_type)
+
         losses = []
 
         loss_init = self.loss(u_init)
@@ -43,7 +47,7 @@ class ProxDescent:
 
                 loss_new = self.loss(u_new)
 
-                diff_u = np.sqrt(((u - u_new) ** 2).sum())
+                diff_u = sqrt(((u - u_new) ** 2).sum())
 
                 diff_loss = loss_old - loss_new
                 diff_lin = loss_old - linloss

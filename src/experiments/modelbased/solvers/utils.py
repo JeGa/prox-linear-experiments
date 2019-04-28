@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def proj_max(v, to=1):
     """
     Projection of the given vector onto the unit ball under the max norm.
@@ -54,8 +57,16 @@ def dot_numpy(a, b):
     return a.dot(b)
 
 
+def sqrt_torch(a):
+    return a.sqrt()
+
+
+def sqrt_numpy(a):
+    return np.sqrt(a)
+
+
 def ttype(tensor_type):
     if tensor_type == 'numpy':
-        return t_numpy, dot_numpy
+        return t_numpy, dot_numpy, sqrt_numpy
     elif tensor_type == 'pytorch':
-        return t_torch, dot_torch
+        return t_torch, dot_torch, sqrt_torch

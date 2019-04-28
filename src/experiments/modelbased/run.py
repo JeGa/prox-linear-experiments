@@ -1,6 +1,6 @@
 import matplotlib
 
-# TODO matplotlib.use('Agg')
+matplotlib.use('Agg')
 
 import logging
 

@@ -37,7 +37,7 @@ def armijo(x0, f, G, proj, params, tensor_type='numpy'):
 
     :param tensor_type: 'numpy' or 'pytorch'.
     """
-    t, dot = modelbased.solvers.utils.ttype(tensor_type)
+    t, dot, sqrt = modelbased.solvers.utils.ttype(tensor_type)
 
     losses = []
     stop = False
@@ -48,7 +48,7 @@ def armijo(x0, f, G, proj, params, tensor_type='numpy'):
         grad = G(x)
         dtau = x - proj(x - params.tau * grad)
 
-        opt = np.sqrt((dtau ** 2)).sum() / params.tau
+        opt = sqrt((dtau ** 2)).sum() / params.tau
         if opt <= params.eps:
             break
 

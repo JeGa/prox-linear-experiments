@@ -1,8 +1,7 @@
+import datetime
 import os
-
 import torch
 from matplotlib import pyplot as plt
-import datetime
 
 
 class Params:
