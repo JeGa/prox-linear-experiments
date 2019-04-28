@@ -20,13 +20,31 @@ def make_folders():
             os.mkdir(item)
 
 
-def plot_losses(losses, filename):
-    plt.figure()
-    plt.plot(range(len(losses)), losses, linewidth=0.4)
+def plot_losses(filename, results):
+    filename = append_time(filename)
 
+    parameters_text = ''
+    for key, value in results['parameters'].items():
+        parameters_text += os.linesep + "{}={}".format(key, value)
+
+    loss = results['loss']
+
+    markevery = len(loss) / 10
+
+    plt.figure()
+
+    plt.plot(range(len(loss)), loss, linewidth=0.4, marker='s', markevery=markevery, markerfacecolor='none')
+
+    plt.text(0.05, 0, parameters_text,
+             horizontalalignment='left', verticalalignment='top', transform=plt.gcf().transFigure)
+
+    plt.title(filename)
+    plt.subplots_adjust(bottom=0.15)
+    plt.legend()
+    plt.xlabel('Iteration')
+    plt.ylabel('Objective')
     plt.minorticks_on()
     plt.grid(which='major', linestyle='-', linewidth=0.1)
-    plt.title(filename)
 
     filepath = os.path.join(cfg.folders['plots'], filename + '.pdf')
 

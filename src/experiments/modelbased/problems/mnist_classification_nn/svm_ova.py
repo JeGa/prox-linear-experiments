@@ -179,7 +179,7 @@ class SVM_OVA:
             sigma=0.7,
             eps=1e-6)
 
-        num_epochs = 10
+        num_epochs = 1
         lam = 0.01
 
         def step_fun(x, yt):
@@ -204,10 +204,16 @@ class SVM_OVA:
         total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
                                                      interval_fun=interval_fun, interval=1)
 
-        filename = modelbased.utils.misc.append_time('prox_descent')
+        results = {
+            'loss': total_losses,
+            'parameters': params.__dict__,
+            'info': ''
+        }
 
-        modelbased.utils.misc.plot_losses(total_losses, filename)
-        modelbased.utils.yaml.write(filename, total_losses, params)
+        filename = 'prox_descent'
+
+        modelbased.utils.misc.plot_losses(filename, results)
+        modelbased.utils.yaml.write(filename, results)
 
         return self.net.params
 
@@ -244,7 +250,7 @@ def get_samples(classificator, num_samples):
 
 
 def run():
-    classificator = SVM_OVA(30, 5)
+    classificator = SVM_OVA(10, 10)
 
     u_new = classificator.run()
 
