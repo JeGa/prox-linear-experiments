@@ -1,4 +1,3 @@
-import numpy as np
 import logging
 
 import modelbased.solvers.utils
@@ -10,21 +9,26 @@ class ProxDescent:
     def __init__(self, params, loss, solve_linearized_subproblem):
         """
         :param params: Object with parameters:
+
             max_iter
+            eps
+
             mu_min
             tau
             sigma
-            eps
 
-        :param loss: Loss function l(u).
+        :param loss: Loss function h(c(u)) + f0(u).
         :param solve_linearized_subproblem: Function which solves the linearized subproblem.
-            With parameters  solve_linearized_subproblem(u, mu).
+
+            Parameters: u_new, linloss = solve_linearized_subproblem(u, mu).
+
+            Where mu is the weight factor for the proximal term.
         """
         self.params = params
         self.loss = loss
         self.solve_linearized_subproblem = solve_linearized_subproblem
 
-    def prox_descent(self, u_init, tensor_type='numpy', verbose=False):
+    def run(self, u_init, tensor_type='numpy', verbose=False):
         t, dot, sqrt = modelbased.solvers.utils.ttype(tensor_type)
 
         losses = []
@@ -62,7 +66,7 @@ class ProxDescent:
                     terminate = True
                     break
 
-                if mu >= 1e12:
+                if mu >= 1e8:
                     terminate = True
                     break
 

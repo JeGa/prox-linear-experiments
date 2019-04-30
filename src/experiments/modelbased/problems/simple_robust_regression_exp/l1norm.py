@@ -242,7 +242,7 @@ class l1norm:
 
         proxdescent = modelbased.solvers.prox_descent.ProxDescent(params, loss, subsolver)
 
-        u_new, losses = proxdescent.prox_descent(u_init, verbose=True)
+        u_new, losses = proxdescent.run(u_init, verbose=True)
 
         return u_new
 

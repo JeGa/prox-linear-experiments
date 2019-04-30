@@ -24,7 +24,7 @@ def fixed_stepsize(x0, f, G, proj, params):
     return x, losses
 
 
-def armijo(x0, f, G, proj, params, tensor_type='numpy'):
+def armijo(x0, f, G, proj, params, tensor_type='numpy', stopping_condition=None):
     """
     :param params: Object with the following members:
 
@@ -36,6 +36,12 @@ def armijo(x0, f, G, proj, params, tensor_type='numpy'):
         sigmamin
 
     :param tensor_type: 'numpy' or 'pytorch'.
+    :param stopping_condition: Function used for early stopping with the following parameters:
+
+        stopping_condition(x).
+
+        Where x is the current iterate. It is evaluated at each iteration. If it returns True, the algorithm stops and
+        returns x.
     """
     t, dot, sqrt = modelbased.solvers.utils.ttype(tensor_type)
 
@@ -74,5 +80,9 @@ def armijo(x0, f, G, proj, params, tensor_type='numpy'):
 
         loss = f(x)
         losses.append(loss)
+
+        if stopping_condition:
+            if stopping_condition(x):
+                break
 
     return x, losses

@@ -11,6 +11,8 @@ import modelbased.solvers.utils
 import modelbased.solvers.projected_gradient
 import modelbased.solvers.prox_descent
 
+import modelbased.solvers.prox_linesearch
+
 logger = logging.getLogger(__name__)
 
 
@@ -93,7 +95,7 @@ class SVM_OVA:
         """
         return self.h(self.c(u, x), y_targets) + self.reg(u, lam)
 
-    def solve_linearized_subproblem(self, uk, tau, x, y_targets, lam, verbose=True):
+    def solve_linearized_subproblem(self, uk, tau, x, y_targets, lam, verbose=True, stopping_condition=None):
         """
         Solve the inner linearized subproblem using gradient ascent on the dual problem.
 
@@ -107,6 +109,13 @@ class SVM_OVA:
 
         :param verbose: If True, prints primal and dual loss before and after optimization.
 
+        :param stopping_condition: A function expecting the following parameters:
+
+                stopping_condition(u, linloss)
+
+            It can be used if the subproblem only should be optimized approximately.
+            It is evaluated at each iteration of projected gradient descent. If it returns True, it stops optimizing.
+
         :return: Solution argmin L_lin(u), loss of linearized subproblem without proximal term.
         """
         n = x.size(0)
@@ -119,9 +128,13 @@ class SVM_OVA:
         yhat = self.net.f(uk, x) - J.mm(uk).view(n, c)
 
         # Primal problem.
-        def P(_u):
-            return self.h(J.mm(_u).view(n, c) + yhat, y_targets) + (
-                    lam * 0.5 * sql2norm(_u) + tau * 0.5 * sql2norm(_u - uk))
+        def P(_u, proximal_term=True):
+            _linloss = self.h(J.mm(_u).view(n, c) + yhat, y_targets) + self.reg(_u, lam)
+
+            if proximal_term:
+                return _linloss + tau * 0.5 * sql2norm(_u - uk)
+            else:
+                return _linloss
 
         # Dual problem.
         def D(_p):
@@ -143,6 +156,9 @@ class SVM_OVA:
 
             return x_projected
 
+        def dual_to_primal(_p):
+            return (1 / (lam + tau)) * (tau * uk - J.t().mm(_p))
+
         # (c*n, 1).
         p = proj(torch.empty(c * n, 1, device=uk.device))
 
@@ -154,10 +170,18 @@ class SVM_OVA:
             tau=1e-2,
             sigmamin=1e-6)
 
-        p_new, losses = modelbased.solvers.projected_gradient.armijo(p, D, gradD, proj, params, tensor_type='pytorch')
+        if not stopping_condition:
+            stopcond = None
+        else:
+            def stopcond(_p):
+                _linloss = P(dual_to_primal(_p), proximal_term=False)
+                return stopping_condition(uk, _linloss)
+
+        p_new, losses = modelbased.solvers.projected_gradient.armijo(p, D, gradD, proj, params,
+                                                                     tensor_type='pytorch', stopping_condition=stopcond)
 
         # Get primal solution.
-        u = (1 / (lam + tau)) * (tau * uk - J.t().mm(p_new))
+        u = dual_to_primal(p_new)
 
         if verbose:
             logger.info("D(p0): {}".format(D(p)))
@@ -167,20 +191,20 @@ class SVM_OVA:
             logger.info("P(u*): {}".format(P(u)))
 
         # Loss of the linearized sub-problem without the proximal term.
-        linloss = self.h(J.mm(u).view(n, c) + yhat, y_targets) + self.reg(u, lam)
+        linloss = P(u, proximal_term=False)
 
         return u.detach(), linloss
 
     def run(self):
         params = modelbased.utils.misc.Params(
-            max_iter=1,
+            max_iter=5,
+            eps=1e-6,
             mu_min=1,
-            tau=2,
-            sigma=0.7,
-            eps=1e-6)
+            tau=5,
+            sigma=0.7)
 
-        num_epochs = 1
-        lam = 0.01
+        num_epochs = 5
+        lam = 0.1
 
         def step_fun(x, yt):
             u_init = self.net.params
@@ -192,7 +216,7 @@ class SVM_OVA:
                 return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False)
 
             proxdescent = modelbased.solvers.prox_descent.ProxDescent(params, loss, subsolver)
-            u_new, losses = proxdescent.prox_descent(u_init, tensor_type='pytorch', verbose=True)
+            u_new, losses = proxdescent.run(u_init, tensor_type='pytorch', verbose=True)
 
             self.net.params = u_new
 
@@ -211,6 +235,59 @@ class SVM_OVA:
         }
 
         filename = 'prox_descent'
+
+        modelbased.utils.misc.plot_losses(filename, results)
+        modelbased.utils.yaml.write(filename, results)
+
+        return self.net.params
+
+    def run_linesearch(self):
+        params = modelbased.utils.misc.Params(
+            max_iter=20,
+            eps=1e-6,
+            proximal_weight=1,
+            gamma=0.7,
+            delta=0.5,
+            eta_max=2)
+
+        num_epochs = 1
+        lam = 0.0
+
+        def step_fun(x, yt):
+            u_init = self.net.params
+
+            def loss(u):
+                return self.loss(u, x, yt, lam)
+
+            def subsolver(u, tau):
+                def stopcond(uk, linloss):
+                    if linloss - loss(uk) < 0:
+                        return True
+                    else:
+                        return False
+
+                return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False, stopping_condition=stopcond)
+
+            proxdescent = modelbased.solvers.prox_linesearch.ProxLinesearch(params, loss, subsolver)
+            u_new, losses = proxdescent.run(u_init, tensor_type='pytorch', verbose=True)
+
+            self.net.params = u_new
+
+            return losses
+
+        def interval_fun(epoch, iteration, _total_losses):
+            logger.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, _total_losses[-1]))
+
+        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
+                                                     interval_fun=interval_fun, interval=1)
+
+        results = {
+            'loss': total_losses,
+            'parameters': params.__dict__,
+            'info': ''
+        }
+
+        filename = 'prox_linesearch'
 
         modelbased.utils.misc.plot_losses(filename, results)
         modelbased.utils.yaml.write(filename, results)
@@ -250,9 +327,9 @@ def get_samples(classificator, num_samples):
 
 
 def run():
-    classificator = SVM_OVA(10, 10)
+    classificator = SVM_OVA(20, 20)
 
-    u_new = classificator.run()
+    u_new = classificator.run_linesearch()
 
     # Predict with some training data.
     x, yt = get_samples(classificator, 36)
