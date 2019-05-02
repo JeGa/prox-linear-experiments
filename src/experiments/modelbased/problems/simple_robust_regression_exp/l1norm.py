@@ -5,7 +5,7 @@ import logging
 
 import modelbased.data.noise_from_model
 import modelbased.utils.misc
-import modelbased.solvers.prox_descent
+import modelbased.solvers.prox_descent_damping
 import modelbased.solvers.projected_gradient
 import modelbased.solvers.utils
 
@@ -240,7 +240,7 @@ class l1norm:
         def subsolver(u, tau):
             return self.solve_linearized_subproblem(u, tau, self.x, self.y_targets, lam)
 
-        proxdescent = modelbased.solvers.prox_descent.ProxDescent(params, loss, subsolver)
+        proxdescent = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, loss, subsolver)
 
         u_new, losses = proxdescent.run(u_init, verbose=True)
 

@@ -9,7 +9,7 @@ class TerminationException(Exception):
     pass
 
 
-class ProxLinesearch:
+class ProxDescentLinesearch:
     def __init__(self, params, loss, solve_linearized_subproblem):
         """
 

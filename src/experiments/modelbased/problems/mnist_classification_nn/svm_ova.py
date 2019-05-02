@@ -9,9 +9,9 @@ import modelbased.utils.yaml
 import modelbased.utils.trainrun
 import modelbased.solvers.utils
 import modelbased.solvers.projected_gradient
-import modelbased.solvers.prox_descent
+import modelbased.solvers.prox_descent_damping
 
-import modelbased.solvers.prox_linesearch
+import modelbased.solvers.prox_descent_linesearch
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +215,7 @@ class SVM_OVA:
             def subsolver(u, tau):
                 return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False)
 
-            proxdescent = modelbased.solvers.prox_descent.ProxDescent(params, loss, subsolver)
+            proxdescent = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, loss, subsolver)
             u_new, losses = proxdescent.run(u_init, tensor_type='pytorch', verbose=True)
 
             self.net.params = u_new
@@ -268,7 +268,7 @@ class SVM_OVA:
 
                 return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False, stopping_condition=None) # TODO
 
-            proxdescent = modelbased.solvers.prox_linesearch.ProxLinesearch(params, loss, subsolver)
+            proxdescent = modelbased.solvers.prox_descent_linesearch.ProxDescentLinesearch(params, loss, subsolver)
             u_new, losses = proxdescent.run(u_init, tensor_type='pytorch', verbose=True)
 
             self.net.params = u_new

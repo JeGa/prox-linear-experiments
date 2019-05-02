@@ -5,7 +5,7 @@ import modelbased.solvers.utils
 logger = logging.getLogger(__name__)
 
 
-class ProxDescent:
+class ProxDescentDamping:
     def __init__(self, params, loss, solve_linearized_subproblem):
         """
         :param params: Object with parameters:
