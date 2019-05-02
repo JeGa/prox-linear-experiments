@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProxDescentDamping:
-    def __init__(self, params, loss, solve_linearized_subproblem):
+    def __init__(self, params, tensor_type='numpy', verbose=False):
         """
         :param params: Object with parameters:
 
@@ -17,24 +17,28 @@ class ProxDescentDamping:
             tau
             sigma
 
+        :param tensor_type: Type of the Tensors used in the algorithm: 'numpy' or 'pytorch'.
+        :param verbose: If True, enables logging on INFO level.
+        """
+        self.params = params
+        self.tensor_type = tensor_type
+        self.verbose = verbose
+
+    def run(self, u_init, loss, solve_linearized_subproblem):
+        """
+        :param u_init: Initial parameter guess.
         :param loss: Loss function h(c(u)) + f0(u).
         :param solve_linearized_subproblem: Function which solves the linearized subproblem.
 
             Parameters: u_new, linloss = solve_linearized_subproblem(u, mu).
 
             Where mu is the weight factor for the proximal term.
-        """
-        self.params = params
-        self.loss = loss
-        self.solve_linearized_subproblem = solve_linearized_subproblem
 
-    def run(self, u_init, tensor_type='numpy', verbose=False):
-        t, dot, sqrt = modelbased.solvers.utils.ttype(tensor_type)
+        :return: Solution u, list of losses (if max_iter > 1).
+        """
+        t, dot, sqrt = modelbased.solvers.utils.ttype(self.tensor_type)
 
         losses = []
-
-        loss_init = self.loss(u_init)
-        losses.append(loss_init)
 
         mu = self.params.mu_min
 
@@ -45,18 +49,18 @@ class ProxDescentDamping:
             num_subproblem = 0
 
             while True:
-                loss_old = self.loss(u)
+                loss_old = loss(u)
 
-                u_new, linloss = self.solve_linearized_subproblem(u, mu)
+                u_new, linloss = solve_linearized_subproblem(u, mu)
 
-                loss_new = self.loss(u_new)
+                loss_new = loss(u_new)
 
                 diff_u = sqrt(((u - u_new) ** 2).sum())
 
                 diff_loss = loss_old - loss_new
                 diff_lin = loss_old - linloss
 
-                if verbose:
+                if self.verbose:
                     logger.info(
                         "Subproblem {}: L(uk)={:.6f}, L(uk+1)={:.6f}, diff_u={:.6f}, mu={}.".format(num_subproblem,
                                                                                                     loss_old, loss_new,
@@ -81,11 +85,11 @@ class ProxDescentDamping:
 
                 num_subproblem += 1
 
-            loss = self.loss(u)
-            losses.append(loss)
+            loss_value = loss(u)
+            losses.append(loss_value)
 
-            if verbose:
-                logger.info("Iteration {}/{}: {:.6f}".format(i, self.params.max_iter, loss))
+            if self.verbose:
+                logger.info("Iteration {}/{}: {:.6f}".format(i, self.params.max_iter, loss_value))
 
             if terminate:
                 break

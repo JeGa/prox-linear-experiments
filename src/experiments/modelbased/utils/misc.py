@@ -21,6 +21,9 @@ def make_folders():
 
 
 def format_dict(_dict):
+    if not _dict:
+        return ''
+
     dict_items = iter(_dict.items())
 
     key, value = next(dict_items)
@@ -33,7 +36,7 @@ def format_dict(_dict):
     return formatted_text
 
 
-def plot_losse(filename, results):
+def plot_loss(filename, results):
     """
     Plots the loss and the additional information in the results dict in a pdf file.
 
@@ -56,7 +59,7 @@ def plot_losse(filename, results):
 
     loss = results['loss']
 
-    markevery = len(loss) // 10
+    markevery = max(1, len(loss) // 10)
 
     plt.figure()
 

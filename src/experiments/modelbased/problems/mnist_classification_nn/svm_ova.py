@@ -195,16 +195,67 @@ class SVM_OVA:
 
         return u.detach(), linloss
 
-    def run_proxdescent(self):
+    def run_proxdescent_fixed(self):
+        num_epochs = 5
+        lam = 0.0
+
+        tau = 0.1
+
+        def step_fun(x, yt):
+            u = self.net.params
+
+            u_new, _ = self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False)
+
+            loss = self.loss(u_new, x, yt, lam)
+
+            self.net.params = u_new
+
+            return [loss]
+
+        def interval_fun(epoch, iteration, _total_losses):
+            logger.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, _total_losses[-1]))
+
+        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
+                                                     interval_fun=interval_fun, interval=1)
+
+        results = {
+            'description': {
+                'loss_function': 'SVM one-versus-all',
+                'forward_model': 'shallow conv net',
+                'optimization': 'ProxDescent with fixed proximal weight, '
+                                'projected dual ascent with armijo on the subproblems.'
+            },
+
+            'loss': total_losses,
+
+            'parameters': None,
+
+            'info': {
+                'epochs': num_epochs,
+                'lambda': lam
+            }
+        }
+
+        filename = 'prox_descent_fixed'
+
+        modelbased.utils.misc.plot_loss(filename, results)
+        modelbased.utils.yaml.write(filename, results)
+
+        return self.net.params
+
+    def run_proxdescent_damping(self):
         params = modelbased.utils.misc.Params(
-            max_iter=5,
+            max_iter=10,
             eps=1e-6,
             mu_min=1,
             tau=5,
             sigma=0.7)
 
-        num_epochs = 5
-        lam = 0.1
+        num_epochs = 1
+        lam = 0.0
+
+        proxdescent = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, tensor_type='pytorch',
+                                                                                 verbose=True)
 
         def step_fun(x, yt):
             u_init = self.net.params
@@ -215,61 +266,7 @@ class SVM_OVA:
             def subsolver(u, tau):
                 return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False)
 
-            proxdescent = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, loss, subsolver)
-            u_new, losses = proxdescent.run(u_init, tensor_type='pytorch', verbose=True)
-
-            self.net.params = u_new
-
-            return losses
-
-        def interval_fun(epoch, iteration, _total_losses):
-            logger.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, _total_losses[-1]))
-
-        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
-                                                     interval_fun=interval_fun, interval=1)
-
-        results = {
-            'loss': total_losses,
-            'parameters': params.__dict__,
-            'info': ''
-        }
-
-        filename = 'prox_descent'
-
-        modelbased.utils.misc.plot_losse(filename, results)
-        modelbased.utils.yaml.write(filename, results)
-
-        return self.net.params
-
-    def run_linesearch(self):
-        params = modelbased.utils.misc.Params(
-            max_iter=20,
-            eps=1e-12,
-            proximal_weight=1,
-            gamma=0.7,
-            delta=0.5,
-            eta_max=2)
-
-        num_epochs = 2
-        lam = 0.01
-
-        def step_fun(x, yt):
-            u_init = self.net.params
-
-            def loss(u):
-                return self.loss(u, x, yt, lam)
-
-            def subsolver(u, tau):
-                def stopcond(uk, linloss):
-                    if linloss - loss(uk) < 0:
-                        return True
-                    else:
-                        return False
-
-                return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False, stopping_condition=None) # TODO
-
-            proxdescent = modelbased.solvers.prox_descent_linesearch.ProxDescentLinesearch(params, loss, subsolver)
-            u_new, losses = proxdescent.run(u_init, tensor_type='pytorch', verbose=True)
+            u_new, losses = proxdescent.run(u_init, loss, subsolver)
 
             self.net.params = u_new
 
@@ -285,8 +282,8 @@ class SVM_OVA:
             'description': {
                 'loss_function': 'SVM one-versus-all',
                 'forward_model': 'shallow conv net',
-                'optimization': 'prox linesearch with inner linearized model function, '
-                                'projected dual ascent with armijo on the subproblems'
+                'optimization': 'ProxDescent with damping, '
+                                'projected dual ascent with armijo on the subproblems.'
             },
 
             'loss': total_losses,
@@ -299,9 +296,78 @@ class SVM_OVA:
             }
         }
 
-        filename = 'prox_linesearch'
+        filename = 'prox_descent_damping'
 
-        modelbased.utils.misc.plot_losse(filename, results)
+        modelbased.utils.misc.plot_loss(filename, results)
+        modelbased.utils.yaml.write(filename, results)
+
+        return self.net.params
+
+    def run_proxdescent_linesearch(self):
+        params = modelbased.utils.misc.Params(
+            max_iter=20,
+            eps=1e-12,
+            proximal_weight=0.1,
+            gamma=0.6,
+            delta=0.5,
+            eta_max=2)
+
+        num_epochs = 1
+        lam = 0.01
+
+        proxdescent = modelbased.solvers.prox_descent_linesearch.ProxDescentLinesearch(params,
+                                                                                       tensor_type='pytorch',
+                                                                                       verbose=True)
+
+        def step_fun(x, yt):
+            u_init = self.net.params
+
+            def loss(u):
+                return self.loss(u, x, yt, lam)
+
+            def subsolver(u, tau):
+                def stopcond(uk, linloss):
+                    if linloss - loss(uk) < 0:
+                        return True
+                    else:
+                        return False
+
+                return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False,
+                                                        stopping_condition=None)  # TODO stopcond.
+
+            u_new, losses = proxdescent.run(u_init, loss, subsolver)
+
+            self.net.params = u_new
+
+            return losses
+
+        def interval_fun(epoch, iteration, _total_losses):
+            logger.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, _total_losses[-1]))
+
+        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
+                                                     interval_fun=interval_fun, interval=1)
+
+        results = {
+            'description': {
+                'loss_function': 'SVM one-versus-all',
+                'forward_model': 'shallow conv net',
+                'optimization': 'ProxDescent with linesearch, '
+                                'projected dual ascent with armijo on the subproblems.'
+            },
+
+            'loss': total_losses,
+
+            'parameters': params.__dict__,
+
+            'info': {
+                'epochs': num_epochs,
+                'lambda': lam
+            }
+        }
+
+        filename = 'prox_descent_linesearch'
+
+        modelbased.utils.misc.plot_loss(filename, results)
         modelbased.utils.yaml.write(filename, results)
 
         return self.net.params
@@ -348,9 +414,9 @@ def get_samples(classificator, num_samples):
 
 
 def run():
-    classificator = SVM_OVA(50, 5)
+    classificator = SVM_OVA(10, 10)
 
-    u_new = classificator.run_linesearch()
+    u_new = classificator.run_proxdescent_fixed()
 
     # Predict with some training data.
     x, yt = get_samples(classificator, 36)
