@@ -20,22 +20,50 @@ def make_folders():
             os.mkdir(item)
 
 
-def plot_losses(filename, results):
+def format_dict(_dict):
+    dict_items = iter(_dict.items())
+
+    key, value = next(dict_items)
+
+    formatted_text = "{}={}".format(key, value)
+
+    for key, value in dict_items:
+        formatted_text += os.linesep + "{}={}".format(key, value)
+
+    return formatted_text
+
+
+def plot_losse(filename, results):
+    """
+    Plots the loss and the additional information in the results dict in a pdf file.
+
+    The additional information is appended as text at the end of the pdf file. This can be used for example for
+    parameter information.
+
+    :param filename: The plot is saved as filename + current date + time.
+    :param results: Dictionary with the following keys:
+
+        'description': dict of strings, describing the setup.
+        'parameters' dict of parameter information.
+        'loss': list of losses.
+        'info': dict of any other informations.
+    """
     filename = append_time(filename)
 
-    parameters_text = ''
-    for key, value in results['parameters'].items():
-        parameters_text += os.linesep + "{}={}".format(key, value)
+    description_text = format_dict(results['description'])
+    parameters_text = format_dict(results['parameters'])
+    info_text = format_dict(results['info'])
 
     loss = results['loss']
 
-    markevery = len(loss) / 10
+    markevery = len(loss) // 10
 
     plt.figure()
 
     plt.plot(range(len(loss)), loss, linewidth=0.4, marker='s', markevery=markevery, markerfacecolor='none')
 
-    plt.text(0.05, 0, parameters_text,
+    plt.text(0.05, 0,
+             description_text + os.linesep + os.linesep + parameters_text + os.linesep + os.linesep + info_text,
              horizontalalignment='left', verticalalignment='top', transform=plt.gcf().transFigure)
 
     plt.title(filename)

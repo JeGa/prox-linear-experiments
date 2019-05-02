@@ -195,7 +195,7 @@ class SVM_OVA:
 
         return u.detach(), linloss
 
-    def run(self):
+    def run_proxdescent(self):
         params = modelbased.utils.misc.Params(
             max_iter=5,
             eps=1e-6,
@@ -236,7 +236,7 @@ class SVM_OVA:
 
         filename = 'prox_descent'
 
-        modelbased.utils.misc.plot_losses(filename, results)
+        modelbased.utils.misc.plot_losse(filename, results)
         modelbased.utils.yaml.write(filename, results)
 
         return self.net.params
@@ -244,14 +244,14 @@ class SVM_OVA:
     def run_linesearch(self):
         params = modelbased.utils.misc.Params(
             max_iter=20,
-            eps=1e-6,
+            eps=1e-12,
             proximal_weight=1,
             gamma=0.7,
             delta=0.5,
             eta_max=2)
 
-        num_epochs = 1
-        lam = 0.0
+        num_epochs = 2
+        lam = 0.01
 
         def step_fun(x, yt):
             u_init = self.net.params
@@ -266,7 +266,7 @@ class SVM_OVA:
                     else:
                         return False
 
-                return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False, stopping_condition=stopcond)
+                return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False, stopping_condition=None) # TODO
 
             proxdescent = modelbased.solvers.prox_linesearch.ProxLinesearch(params, loss, subsolver)
             u_new, losses = proxdescent.run(u_init, tensor_type='pytorch', verbose=True)
@@ -282,14 +282,26 @@ class SVM_OVA:
                                                      interval_fun=interval_fun, interval=1)
 
         results = {
+            'description': {
+                'loss_function': 'SVM one-versus-all',
+                'forward_model': 'shallow conv net',
+                'optimization': 'prox linesearch with inner linearized model function, '
+                                'projected dual ascent with armijo on the subproblems'
+            },
+
             'loss': total_losses,
+
             'parameters': params.__dict__,
-            'info': ''
+
+            'info': {
+                'epochs': num_epochs,
+                'lambda': lam
+            }
         }
 
         filename = 'prox_linesearch'
 
-        modelbased.utils.misc.plot_losses(filename, results)
+        modelbased.utils.misc.plot_losse(filename, results)
         modelbased.utils.yaml.write(filename, results)
 
         return self.net.params
@@ -304,6 +316,15 @@ class SVM_OVA:
 
 
 def get_samples(classificator, num_samples):
+    """
+    Extracts num_samples from the torch data loader.
+    This is required because it only allows to get batches of samples and not a fixed size.
+
+    :param classificator: Classificator instance with trainloader member.
+    :param num_samples: Number of samples to extract.
+
+    :return: (x, yt), input and ground truth samples with batch size = num_samples.
+    """
     data_x = ()
     data_yt = ()
 
@@ -327,7 +348,7 @@ def get_samples(classificator, num_samples):
 
 
 def run():
-    classificator = SVM_OVA(20, 20)
+    classificator = SVM_OVA(50, 5)
 
     u_new = classificator.run_linesearch()
 
