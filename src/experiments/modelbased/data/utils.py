@@ -27,7 +27,7 @@ def get_samples(dataloader, num_samples):
     if samples > num_samples:
         samples = num_samples
 
-    x = torch.cat(data_x[0:samples], 0)
-    yt = torch.cat(data_yt[0:samples], 0)
+    x = torch.cat(data_x, 0)[0:samples]
+    yt = torch.cat(data_yt, 0)[0:samples]
 
     return x, yt
