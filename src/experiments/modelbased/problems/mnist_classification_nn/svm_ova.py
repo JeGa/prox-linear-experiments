@@ -23,11 +23,10 @@ def sql2norm(x):
 
 
 class SVM_OVA:
-    def __init__(self, trainloader):
+    def __init__(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info("Using device: {}.".format(device))
 
-        self.trainloader = trainloader
         self.net = mnist_nn.SimpleConvNetMNIST(F.relu, device)
 
     @staticmethod
@@ -201,13 +200,13 @@ class SVM_OVA:
     def predict(self, x):
         return self._predict(self.net.params, x)
 
-    def run(self):
+    def run(self, loader):
         raise NotImplementedError()
 
 
 class ProxDescentFixed(SVM_OVA):
-    def run(self):
-        num_epochs = 1
+    def run(self, trainloader):
+        num_epochs = 2
         lam = 0.0
         tau = 0.1
 
@@ -223,10 +222,10 @@ class ProxDescentFixed(SVM_OVA):
             return [loss]
 
         def interval_fun(epoch, iteration, batch_iteration, _total_losses):
-            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(self.trainloader),
+            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(trainloader),
                                                                epoch, num_epochs, _total_losses[-1]))
 
-        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
+        total_losses = modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
                                                      interval_fun=interval_fun, interval=1)
 
         results = {
@@ -247,14 +246,16 @@ class ProxDescentFixed(SVM_OVA):
             'info': {
                 'epochs': num_epochs,
                 'lambda': lam
-            }
+            },
+
+            'model_parameters': self.net.params.numpy().tolist()
         }
 
         return results
 
 
 class ProxDescentLinesearch(SVM_OVA):
-    def run(self):
+    def run(self, trainloader):
         params = modelbased.utils.misc.Params(
             max_iter=20,
             eps=1e-12,
@@ -293,10 +294,10 @@ class ProxDescentLinesearch(SVM_OVA):
             return losses
 
         def interval_fun(epoch, iteration, batch_iteration, _total_losses):
-            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(self.trainloader),
+            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(trainloader),
                                                                epoch, num_epochs, _total_losses[-1]))
 
-        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
+        total_losses = modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
                                                      interval_fun=interval_fun, interval=1)
 
         results = {
@@ -317,14 +318,16 @@ class ProxDescentLinesearch(SVM_OVA):
             'info': {
                 'epochs': num_epochs,
                 'lambda': lam
-            }
+            },
+
+            'model_parameters': self.net.params.numpy().tolist()
         }
 
         return results
 
 
 class ProxDescentDamping(SVM_OVA):
-    def run(self):
+    def run(self, trainloader):
         params = modelbased.utils.misc.Params(
             max_iter=10,
             eps=1e-6,
@@ -354,10 +357,10 @@ class ProxDescentDamping(SVM_OVA):
             return losses
 
         def interval_fun(epoch, iteration, batch_iteration, _total_losses):
-            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(self.trainloader),
+            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(trainloader),
                                                                epoch, num_epochs, _total_losses[-1]))
 
-        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
+        total_losses = modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
                                                      interval_fun=interval_fun, interval=1)
 
         results = {
@@ -378,38 +381,60 @@ class ProxDescentDamping(SVM_OVA):
             'info': {
                 'epochs': num_epochs,
                 'lambda': lam
-            }
+            },
+
+            'model_parameters': self.net.params.numpy().tolist()
         }
 
         return results
 
 
-def run():
-    train_samples = 51
-    batchsize = 10
-
+def data(train_samples, batchsize):
     def transform(x):
         return modelbased.utils.misc.one_hot(x, 10, hot=1, off=-1)
 
-    trailoader, testloader, _, _, _ = mnist_data.load('datasets/mnist', train_samples, train_samples,
-                                                      batchsize, batchsize,
-                                                      one_hot_encoding=transform)
+    trainloader, testloader, _, _, _ = mnist_data.load('datasets/mnist',
+                                                       train_samples, train_samples,
+                                                       batchsize, batchsize,
+                                                       one_hot_encoding=transform)
+    return trainloader, testloader
 
-    classificator = ProxDescentFixed(trailoader)
-    train_results = classificator.run()
+
+def train():
+    train_samples = None
+    batchsize = 10
+
+    trainloader, testloader = data(train_samples, batchsize)
+
+    classificator = ProxDescentFixed()
+    train_results = classificator.run(trainloader)
 
     modelbased.utils.misc.plot_loss(train_results)
     modelbased.utils.yaml.write(train_results)
 
-    # Evaluate model.
+    evaluate(train_results, train_results['name'], trainloader, testloader)
 
-    name = train_results['name']
+
+def restore(train_results):
+    params = torch.Tensor(train_results['model_parameters'])
+
+    classificator = SVM_OVA()
+    classificator.net.params = params
+
+    return classificator
+
+
+def evaluate(train_results, name, trainloader, testloader):
+    classificator = restore(train_results)
+
     test_results = train_results
+
+    test_results['name'] = name
     test_results['type'] = 'test'
 
     # On training data.
-    modelbased.utils.evaluate.image_grid(name, classificator, classificator.trainloader)
-    correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, classificator.trainloader)
+    modelbased.utils.evaluate.image_grid(name, classificator, trainloader)
+    correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, trainloader)
 
     test_results['zero_one_train'] = "{}/{}".format(correct, num_samples)
 
@@ -419,4 +444,14 @@ def run():
 
     test_results['zero_one_test'] = "{}/{}".format(correct, num_samples)
 
-    print(test_results)
+    modelbased.utils.yaml.write(test_results)
+
+
+def evaluate_from_file(name):
+    train_results = modelbased.utils.yaml.load(name)
+
+    train_samples = 50
+    batchsize = 10
+    trainloader, testloader = data(train_samples, batchsize)
+
+    evaluate(train_results, modelbased.utils.misc.append_time(train_results['name']), trainloader, testloader)

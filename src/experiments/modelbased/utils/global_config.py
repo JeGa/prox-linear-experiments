@@ -1,6 +1,7 @@
 import os
 
 folders = {
-    'data': os.path.join('modelbased', 'results', 'data'),
+    'data_train': os.path.join('modelbased', 'results', 'data', 'train'),
+    'data_test': os.path.join('modelbased', 'results', 'data', 'test'),
     'plots': os.path.join('modelbased', 'results', 'plots')
 }

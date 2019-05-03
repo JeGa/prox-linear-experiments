@@ -5,7 +5,7 @@ matplotlib.use('Agg')
 import logging
 
 from problems.simple_robust_regression_exp.l1norm import run as run_reg
-from problems.mnist_classification_nn.svm_ova import run as run_cls_svm
+import problems.mnist_classification_nn.svm_ova  as svm_ova_proxdescent
 
 import modelbased.utils.misc
 
@@ -14,6 +14,5 @@ if __name__ == '__main__':
 
     modelbased.utils.misc.make_folders()
 
-    # run_spirals()
-    run_cls_svm()
-    # run_reg()
+    #svm_ova_proxdescent.evaluate_from_file('prox_descent_fixed_03-05-19_18:57:32')
+    svm_ova_proxdescent.train()
