@@ -414,7 +414,7 @@ def get_samples(classificator, num_samples):
 
 
 def run():
-    classificator = SVM_OVA(10, 10)
+    classificator = SVM_OVA(None, 10)
 
     u_new = classificator.run_proxdescent_fixed()
 

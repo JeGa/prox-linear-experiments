@@ -5,10 +5,16 @@ logger = logging.getLogger(__name__)
 
 def fixed_stepsize(x0, f, G, params, verbose=False):
     """
+    :param x0: Initial guess.
+    :param f: Function to minimize.
+    :param G: Function evaluating the gradient of f.
+
     :param params: Object with the following members:
 
         max_iter
         sigma
+
+    :param verbose: If True, logs information as INFO.
     """
     losses = []
 
@@ -30,11 +36,17 @@ def fixed_stepsize(x0, f, G, params, verbose=False):
 
 def armijo(x0, f, G, params, verbose=False):
     """
+    :param x0: Initial guess.
+    :param f: Function to minimize.
+    :param G: Function evaluating the gradient of f.
+
     :param params: Object with the following members:
 
         max_iter
         beta
         gamma
+
+    :param verbose: If True, logs information as INFO.
     """
     losses = []
 

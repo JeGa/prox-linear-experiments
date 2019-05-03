@@ -1,10 +1,13 @@
-import numpy as np
-
 import modelbased.solvers.utils
 
 
 def fixed_stepsize(x0, f, G, proj, params):
     """
+    :param x0: Initial guess.
+    :param f: Function to minimize.
+    :param G: Function evaluating the gradient of f.
+    :param proj: Function projecting an iterate to the constraint set.
+
     :param params: Object with the following members:
 
         max_iter
@@ -26,6 +29,11 @@ def fixed_stepsize(x0, f, G, proj, params):
 
 def armijo(x0, f, G, proj, params, tensor_type='numpy', stopping_condition=None):
     """
+    :param x0: Initial guess.
+    :param f: Function to minimize.
+    :param G: Function evaluating the gradient of f.
+    :param proj: Function projecting an iterate to the constraint set.
+
     :param params: Object with the following members:
 
         max_iter
