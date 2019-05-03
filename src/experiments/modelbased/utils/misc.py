@@ -46,6 +46,7 @@ def plot_loss(results):
     :param results: Dictionary with the following keys:
 
         'name': Identifier and filename of the saved plot.
+        'type': 'train' or 'test'.
         'description': dict of strings, describing the setup.
         'parameters' dict of parameter information.
         'loss': list of losses.
@@ -82,10 +83,11 @@ def plot_loss(results):
     plt.savefig(filepath, bbox_inches='tight')
 
 
-def plot_grid(x, y, yt, nrow=6):
+def plot_grid(filename, x, y, yt, nrow=6):
     """
     Plot the given x images in a grid with the corresponding predicted and ground truth labels.
 
+    :param filename: Filename of the saved pdf.
     :param x: Torch tensor with shape = (n, channels, ysize, xsize).
     :param y: Torch tensor with shape = (c).
     :param yt: Torch tensor with shape = (c).
@@ -113,7 +115,6 @@ def plot_grid(x, y, yt, nrow=6):
             if (i - 1) * nrow + j == n:
                 break
 
-    filename = append_time('mnist_results')
     plt.savefig(os.path.join(cfg.folders['plots'], filename + '.pdf'))
 
 

@@ -9,7 +9,10 @@ def run(epochs, loader, step_fun, device, epoch_fun=None, interval_fun=None, int
         for x, yt in loader:
             x, yt = x.to(device), yt.to(device)
 
-            total_losses += step_fun(x, yt)
+            loss = step_fun(x, yt)
+
+            if loss:
+                total_losses += loss
 
             if interval and interval_fun:
                 if iteration % interval == 0:

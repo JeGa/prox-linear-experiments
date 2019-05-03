@@ -8,6 +8,7 @@ import modelbased.problems.mnist_classification_nn.nn as mnist_nn
 import modelbased.utils.misc
 import modelbased.utils.yaml
 import modelbased.utils.trainrun
+import modelbased.utils.evaluate
 import modelbased.solvers.utils
 import modelbased.solvers.projected_gradient
 import modelbased.solvers.prox_descent_damping
@@ -22,13 +23,7 @@ def sql2norm(x):
 
 
 class SVM_OVA:
-    def __init__(self, subset, batchsize):
-        def transform(x):
-            return modelbased.utils.misc.one_hot(x, 10, hot=1, off=-1)
-
-        trainloader, _, _, _, _ = mnist_data.load('datasets/mnist', subset, 10, batchsize, 10,
-                                                  one_hot_encoding=transform)
-
+    def __init__(self, trainloader):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info("Using device: {}.".format(device))
 
@@ -196,13 +191,15 @@ class SVM_OVA:
 
         return u.detach(), linloss
 
-    def predict(self, u, x):
-        # (n, c).
+    def _predict(self, u, x):
         x = x.to(self.net.device)
 
         y = self.net.f(u, x)
 
         return y.argmax(1)
+
+    def predict(self, x):
+        return self._predict(self.net.params, x)
 
     def run(self):
         raise NotImplementedError()
@@ -210,7 +207,7 @@ class SVM_OVA:
 
 class ProxDescentFixed(SVM_OVA):
     def run(self):
-        num_epochs = 5
+        num_epochs = 1
         lam = 0.0
         tau = 0.1
 
@@ -234,6 +231,7 @@ class ProxDescentFixed(SVM_OVA):
 
         results = {
             'name': modelbased.utils.misc.append_time('prox_descent_fixed'),
+            'type': 'train',
 
             'description': {
                 'loss_function': 'SVM one-versus-all',
@@ -252,10 +250,7 @@ class ProxDescentFixed(SVM_OVA):
             }
         }
 
-        modelbased.utils.misc.plot_loss(results)
-        modelbased.utils.yaml.write(results)
-
-        return self.net.params
+        return results
 
 
 class ProxDescentLinesearch(SVM_OVA):
@@ -306,6 +301,7 @@ class ProxDescentLinesearch(SVM_OVA):
 
         results = {
             'name': modelbased.utils.misc.append_time('prox_descent_linesearch'),
+            'type': 'train',
 
             'description': {
                 'loss_function': 'SVM one-versus-all',
@@ -324,10 +320,7 @@ class ProxDescentLinesearch(SVM_OVA):
             }
         }
 
-        modelbased.utils.misc.plot_loss(results)
-        modelbased.utils.yaml.write(results)
-
-        return self.net.params
+        return results
 
 
 class ProxDescentDamping(SVM_OVA):
@@ -369,6 +362,7 @@ class ProxDescentDamping(SVM_OVA):
 
         results = {
             'name': modelbased.utils.misc.append_time('prox_descent_damping'),
+            'type': 'train',
 
             'description': {
                 'loss_function': 'SVM one-versus-all',
@@ -387,23 +381,42 @@ class ProxDescentDamping(SVM_OVA):
             }
         }
 
-        modelbased.utils.misc.plot_loss(results)
-        modelbased.utils.yaml.write(results)
-
-        return self.net.params
+        return results
 
 
 def run():
-    classificator = ProxDescentFixed(51, 10)
+    train_samples = 51
+    batchsize = 10
 
-    u_new = classificator.run()
+    def transform(x):
+        return modelbased.utils.misc.one_hot(x, 10, hot=1, off=-1)
 
-    # Predict with some training data.
-    x, yt = modelbased.data.utils.get_samples(classificator.trainloader, 36)
+    trailoader, testloader, _, _, _ = mnist_data.load('datasets/mnist', train_samples, train_samples,
+                                                      batchsize, batchsize,
+                                                      one_hot_encoding=transform)
 
-    print(x.size(0))
+    classificator = ProxDescentFixed(trailoader)
+    train_results = classificator.run()
 
-    yt_predict = yt.argmax(1)
-    y_predict = classificator.predict(u_new, x)
+    modelbased.utils.misc.plot_loss(train_results)
+    modelbased.utils.yaml.write(train_results)
 
-    modelbased.utils.misc.plot_grid(x, y_predict, yt_predict)
+    # Evaluate model.
+
+    name = train_results['name']
+    test_results = train_results
+    test_results['type'] = 'test'
+
+    # On training data.
+    modelbased.utils.evaluate.image_grid(name, classificator, classificator.trainloader)
+    correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, classificator.trainloader)
+
+    test_results['zero_one_train'] = "{}/{}".format(correct, num_samples)
+
+    # On test data.
+    modelbased.utils.evaluate.image_grid(name, classificator, testloader)
+    correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, testloader)
+
+    test_results['zero_one_test'] = "{}/{}".format(correct, num_samples)
+
+    print(test_results)
