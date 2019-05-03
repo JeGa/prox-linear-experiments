@@ -36,22 +36,22 @@ def format_dict(_dict):
     return formatted_text
 
 
-def plot_loss(filename, results):
+def plot_loss(results):
     """
     Plots the loss and the additional information in the results dict in a pdf file.
 
     The additional information is appended as text at the end of the pdf file. This can be used for example for
     parameter information.
 
-    :param filename: The plot is saved as filename + current date + time.
     :param results: Dictionary with the following keys:
 
+        'name': Identifier and filename of the saved plot.
         'description': dict of strings, describing the setup.
         'parameters' dict of parameter information.
         'loss': list of losses.
         'info': dict of any other informations.
     """
-    filename = append_time(filename)
+    filename = results['name']
 
     description_text = format_dict(results['description'])
     parameters_text = format_dict(results['parameters'])

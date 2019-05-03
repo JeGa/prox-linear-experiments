@@ -4,6 +4,8 @@ def run(epochs, loader, step_fun, device, epoch_fun=None, interval_fun=None, int
     iteration = 0
 
     for i in range(epochs):
+
+        batch_iteration = 0
         for x, yt in loader:
             x, yt = x.to(device), yt.to(device)
 
@@ -11,9 +13,10 @@ def run(epochs, loader, step_fun, device, epoch_fun=None, interval_fun=None, int
 
             if interval and interval_fun:
                 if iteration % interval == 0:
-                    interval_fun(i, iteration, total_losses)
+                    interval_fun(i, iteration, batch_iteration, total_losses)
 
             iteration += 1
+            batch_iteration += 1
 
         if epoch_fun:
             epoch_fun()

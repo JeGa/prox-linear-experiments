@@ -3,6 +3,7 @@ from torch.nn import functional as F
 import logging
 
 import modelbased.data.mnist as mnist_data
+import modelbased.data.utils
 import modelbased.problems.mnist_classification_nn.nn as mnist_nn
 import modelbased.utils.misc
 import modelbased.utils.yaml
@@ -195,10 +196,22 @@ class SVM_OVA:
 
         return u.detach(), linloss
 
-    def run_proxdescent_fixed(self):
+    def predict(self, u, x):
+        # (n, c).
+        x = x.to(self.net.device)
+
+        y = self.net.f(u, x)
+
+        return y.argmax(1)
+
+    def run(self):
+        raise NotImplementedError()
+
+
+class ProxDescentFixed(SVM_OVA):
+    def run(self):
         num_epochs = 5
         lam = 0.0
-
         tau = 0.1
 
         def step_fun(x, yt):
@@ -212,13 +225,16 @@ class SVM_OVA:
 
             return [loss]
 
-        def interval_fun(epoch, iteration, _total_losses):
-            logger.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, _total_losses[-1]))
+        def interval_fun(epoch, iteration, batch_iteration, _total_losses):
+            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(self.trainloader),
+                                                               epoch, num_epochs, _total_losses[-1]))
 
         total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
                                                      interval_fun=interval_fun, interval=1)
 
         results = {
+            'name': modelbased.utils.misc.append_time('prox_descent_fixed'),
+
             'description': {
                 'loss_function': 'SVM one-versus-all',
                 'forward_model': 'shallow conv net',
@@ -236,74 +252,14 @@ class SVM_OVA:
             }
         }
 
-        filename = 'prox_descent_fixed'
-
-        modelbased.utils.misc.plot_loss(filename, results)
-        modelbased.utils.yaml.write(filename, results)
+        modelbased.utils.misc.plot_loss(results)
+        modelbased.utils.yaml.write(results)
 
         return self.net.params
 
-    def run_proxdescent_damping(self):
-        params = modelbased.utils.misc.Params(
-            max_iter=10,
-            eps=1e-6,
-            mu_min=1,
-            tau=5,
-            sigma=0.7)
 
-        num_epochs = 1
-        lam = 0.0
-
-        proxdescent = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, tensor_type='pytorch',
-                                                                                 verbose=True)
-
-        def step_fun(x, yt):
-            u_init = self.net.params
-
-            def loss(u):
-                return self.loss(u, x, yt, lam)
-
-            def subsolver(u, tau):
-                return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False)
-
-            u_new, losses = proxdescent.run(u_init, loss, subsolver)
-
-            self.net.params = u_new
-
-            return losses
-
-        def interval_fun(epoch, iteration, _total_losses):
-            logger.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, _total_losses[-1]))
-
-        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
-                                                     interval_fun=interval_fun, interval=1)
-
-        results = {
-            'description': {
-                'loss_function': 'SVM one-versus-all',
-                'forward_model': 'shallow conv net',
-                'optimization': 'ProxDescent with damping, '
-                                'projected dual ascent with armijo on the subproblems.'
-            },
-
-            'loss': total_losses,
-
-            'parameters': params.__dict__,
-
-            'info': {
-                'epochs': num_epochs,
-                'lambda': lam
-            }
-        }
-
-        filename = 'prox_descent_damping'
-
-        modelbased.utils.misc.plot_loss(filename, results)
-        modelbased.utils.yaml.write(filename, results)
-
-        return self.net.params
-
-    def run_proxdescent_linesearch(self):
+class ProxDescentLinesearch(SVM_OVA):
+    def run(self):
         params = modelbased.utils.misc.Params(
             max_iter=20,
             eps=1e-12,
@@ -341,13 +297,16 @@ class SVM_OVA:
 
             return losses
 
-        def interval_fun(epoch, iteration, _total_losses):
-            logger.info("[{}], {}/{}: Loss={:.6f}.".format(iteration, epoch, num_epochs, _total_losses[-1]))
+        def interval_fun(epoch, iteration, batch_iteration, _total_losses):
+            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(self.trainloader),
+                                                               epoch, num_epochs, _total_losses[-1]))
 
         total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
                                                      interval_fun=interval_fun, interval=1)
 
         results = {
+            'name': modelbased.utils.misc.append_time('prox_descent_linesearch'),
+
             'description': {
                 'loss_function': 'SVM one-versus-all',
                 'forward_model': 'shallow conv net',
@@ -365,61 +324,84 @@ class SVM_OVA:
             }
         }
 
-        filename = 'prox_descent_linesearch'
-
-        modelbased.utils.misc.plot_loss(filename, results)
-        modelbased.utils.yaml.write(filename, results)
+        modelbased.utils.misc.plot_loss(results)
+        modelbased.utils.yaml.write(results)
 
         return self.net.params
 
-    def predict(self, u, x):
-        # (n, c).
-        x = x.to(self.net.device)
 
-        y = self.net.f(u, x)
+class ProxDescentDamping(SVM_OVA):
+    def run(self):
+        params = modelbased.utils.misc.Params(
+            max_iter=10,
+            eps=1e-6,
+            mu_min=1,
+            tau=5,
+            sigma=0.7)
 
-        return y.argmax(1)
+        num_epochs = 1
+        lam = 0.0
 
+        proxdescent = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, tensor_type='pytorch',
+                                                                                 verbose=True)
 
-def get_samples(classificator, num_samples):
-    """
-    Extracts num_samples from the torch data loader.
-    This is required because it only allows to get batches of samples and not a fixed size.
+        def step_fun(x, yt):
+            u_init = self.net.params
 
-    :param classificator: Classificator instance with trainloader member.
-    :param num_samples: Number of samples to extract.
+            def loss(u):
+                return self.loss(u, x, yt, lam)
 
-    :return: (x, yt), input and ground truth samples with batch size = num_samples.
-    """
-    data_x = ()
-    data_yt = ()
+            def subsolver(u, tau):
+                return self.solve_linearized_subproblem(u, tau, x, yt, lam, verbose=False)
 
-    samples = 0
-    for x, yt in classificator.trainloader:
-        data_x += (x,)
-        data_yt += (yt,)
+            u_new, losses = proxdescent.run(u_init, loss, subsolver)
 
-        samples += x.size(0)
+            self.net.params = u_new
 
-        if samples >= num_samples:
-            break
+            return losses
 
-    if samples > num_samples:
-        samples = num_samples
+        def interval_fun(epoch, iteration, batch_iteration, _total_losses):
+            logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(self.trainloader),
+                                                               epoch, num_epochs, _total_losses[-1]))
 
-    x = torch.cat(data_x[0:samples], 0)
-    yt = torch.cat(data_yt[0:samples], 0)
+        total_losses = modelbased.utils.trainrun.run(num_epochs, self.trainloader, step_fun, self.net.device,
+                                                     interval_fun=interval_fun, interval=1)
 
-    return x, yt
+        results = {
+            'name': modelbased.utils.misc.append_time('prox_descent_damping'),
+
+            'description': {
+                'loss_function': 'SVM one-versus-all',
+                'forward_model': 'shallow conv net',
+                'optimization': 'ProxDescent with damping, '
+                                'projected dual ascent with armijo on the subproblems.'
+            },
+
+            'loss': total_losses,
+
+            'parameters': params.__dict__,
+
+            'info': {
+                'epochs': num_epochs,
+                'lambda': lam
+            }
+        }
+
+        modelbased.utils.misc.plot_loss(results)
+        modelbased.utils.yaml.write(results)
+
+        return self.net.params
 
 
 def run():
-    classificator = SVM_OVA(None, 10)
+    classificator = ProxDescentFixed(51, 10)
 
-    u_new = classificator.run_proxdescent_fixed()
+    u_new = classificator.run()
 
     # Predict with some training data.
-    x, yt = get_samples(classificator, 36)
+    x, yt = modelbased.data.utils.get_samples(classificator.trainloader, 36)
+
+    print(x.size(0))
 
     yt_predict = yt.argmax(1)
     y_predict = classificator.predict(u_new, x)
