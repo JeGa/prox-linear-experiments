@@ -42,32 +42,40 @@ def torch_proj(v, left, right):
     return v
 
 
-def t_torch(a):
-    return a.t()
-
-
-def t_numpy(a):
-    return a.T
-
-
-def dot_torch(a, b):
-    return a.mm(b)
-
-
-def dot_numpy(a, b):
-    return a.dot(b)
-
-
-def sqrt_torch(a):
-    return a.sqrt()
-
-
-def sqrt_numpy(a):
-    return np.sqrt(a)
-
-
 def ttype(tensor_type):
     if tensor_type == 'numpy':
-        return t_numpy, dot_numpy, sqrt_numpy
+        F = NumpyFunctions
     elif tensor_type == 'pytorch':
-        return t_torch, dot_torch, sqrt_torch
+        F = PytorchFunctions
+    else:
+        raise NameError("Unknown tensor_type.")
+
+    return F.t, F.dot, F.sqrt
+
+
+class NumpyFunctions:
+    @staticmethod
+    def t(a):
+        return a.T
+
+    @staticmethod
+    def dot(a, b):
+        return a.dot(b)
+
+    @staticmethod
+    def sqrt(a):
+        return np.sqrt(a)
+
+
+class PytorchFunctions:
+    @staticmethod
+    def t(a):
+        return a.t()
+
+    @staticmethod
+    def dot(a, b):
+        return a.mm(b)
+
+    @staticmethod
+    def sqrt(a):
+        return a.sqrt()
