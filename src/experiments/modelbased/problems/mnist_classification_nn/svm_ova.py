@@ -206,9 +206,9 @@ class SVM_OVA:
 
 class ProxDescentFixed(SVM_OVA):
     def run(self, trainloader):
-        num_epochs = 2
-        lam = 0.0
-        tau = 0.1
+        num_epochs = 5
+        lam = 1
+        tau = 1
 
         def step_fun(x, yt):
             u = self.net.params
@@ -248,7 +248,7 @@ class ProxDescentFixed(SVM_OVA):
                 'lambda': lam
             },
 
-            'model_parameters': self.net.params.numpy().tolist()
+            'model_parameters': self.net.params.cpu().numpy().tolist()
         }
 
         return results
@@ -320,7 +320,7 @@ class ProxDescentLinesearch(SVM_OVA):
                 'lambda': lam
             },
 
-            'model_parameters': self.net.params.numpy().tolist()
+            'model_parameters': self.net.params.cpu().numpy().tolist()
         }
 
         return results
@@ -383,7 +383,7 @@ class ProxDescentDamping(SVM_OVA):
                 'lambda': lam
             },
 
-            'model_parameters': self.net.params.numpy().tolist()
+            'model_parameters': self.net.params.cpu().numpy().tolist()
         }
 
         return results
