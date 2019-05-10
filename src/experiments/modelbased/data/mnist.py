@@ -6,23 +6,26 @@ import logging
 
 def load(folder, training_samples=None, test_samples=None,
          training_batch_size=None, test_batch_size=None,
-         one_hot_encoding=None):
+         target_transform_function=None):
     """
     :param folder: Location of mnist data.
     :param training_samples: If only a subset of the training data is required.
     :param test_samples: If only a subset of the test data is required.
+
     :param training_batch_size: Batch size for training data.
     :param test_batch_size: Batch size for test data.
 
-    :param one_hot_encoding: Function which, if not None, is applied to the targets.
+    If one batch size or both are None, the batch size is the length of the respective data set (batch mode).
+
+    :param target_transform_function: Function which, if not None, is applied to the targets.
         ``For example one_hot_encoding=lambda x: utils.misc.one_hot(x, 10)``.
 
     :return: trainloader, testloader, training_batch_size, test_batch_size, classes.
     """
     input_transform = tf.Compose([tf.ToTensor(), tf.Normalize([0.5], [0.5])])
 
-    if one_hot_encoding:
-        target_transform = tf.Lambda(one_hot_encoding)
+    if target_transform_function:
+        target_transform = tf.Lambda(target_transform_function)
     else:
         target_transform = None
 
