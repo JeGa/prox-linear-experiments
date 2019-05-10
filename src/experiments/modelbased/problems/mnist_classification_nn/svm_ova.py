@@ -59,7 +59,7 @@ class SVM_OVA:
 
     def c(self, u, x, set_param=False):
         """
-        :param u: shape (d, 1).
+        :param u: shape = (d, 1).
         :param x: shape = (n, channels, ysize, xsize).
         :param set_param: If True, set the network parameters, if False just evaluate and keep the old parameters.
 
@@ -86,7 +86,7 @@ class SVM_OVA:
         :param y_targets: shape = (n, c) in one-hot encoding with "hot" = 1, else -1.
         :param lam: Scalar regularizer weight factor.
 
-        :return: L(u)
+        :return: L(u).
         """
         return self.h(self.c(u, x), y_targets) + self.reg(u, lam)
 
@@ -206,8 +206,8 @@ class SVM_OVA:
 
 class ProxDescentFixed(SVM_OVA):
     def run(self, trainloader):
-        num_epochs = 5
-        lam = 1
+        num_epochs = 10
+        lam = 0
         tau = 1
 
         def step_fun(x, yt):
@@ -396,7 +396,7 @@ def data(train_samples, batchsize):
     trainloader, testloader, _, _, _ = mnist_data.load('datasets/mnist',
                                                        train_samples, train_samples,
                                                        batchsize, batchsize,
-                                                       one_hot_encoding=transform)
+                                                       target_transform_function=transform)
     return trainloader, testloader
 
 
