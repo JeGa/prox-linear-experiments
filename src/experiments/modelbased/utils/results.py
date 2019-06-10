@@ -36,6 +36,10 @@ class Results:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    @property
+    def __dict__(self):
+        return {var: getattr(self, var) for var in self.__slots__ if hasattr(self, var)}
+
     # TODO
     def info_text(self):
         """

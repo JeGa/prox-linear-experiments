@@ -25,7 +25,6 @@ class SimpleFullyConnected(nn.BaseNetwork):
         self.to(self.device)
 
     def forward(self, x):
-
         a = self.h(self.fclayers[0](x))
 
         for i in range(1, len(self.fclayers)):
