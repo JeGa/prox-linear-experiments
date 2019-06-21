@@ -1,5 +1,4 @@
 import logging
-
 import modelbased.solvers.utils
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,7 @@ class ProxDescentDamping:
     def run(self, u_init, loss, solve_linearized_subproblem):
         """
         :param u_init: Initial parameter guess.
-        :param loss: Loss function h(c(u)) + f0(u).
+        :param loss: Loss function h(c(u)) + r(u).
         :param solve_linearized_subproblem: Function which solves the linearized subproblem.
 
             Parameters: u_new, linloss = solve_linearized_subproblem(u, mu).

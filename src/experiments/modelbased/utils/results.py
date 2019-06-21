@@ -40,7 +40,7 @@ class Results:
     def __dict__(self):
         return {var: getattr(self, var) for var in self.__slots__ if hasattr(self, var)}
 
-    # TODO
+    # TODO: Remove with plot function, not needed.
     def info_text(self):
         """
         Returns a string containing all relevant information about the used methods, etc.

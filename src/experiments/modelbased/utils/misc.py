@@ -1,5 +1,4 @@
 import datetime
-import os
 import torch
 import torchvision.utils
 import numpy as np
@@ -14,12 +13,16 @@ class Params:
         self.__dict__.update(params)
 
 
+import os
+
+
 def make_folders():
     for item in cfg.folders.values():
         if not os.path.exists(item):
             os.mkdir(item)
 
 
+# TODO: Use evaltool Plotter ... or just delete plot function.
 def plot_losses(results, loss_keys):
     """
     Plots the losses and the additional information from the Result instances in the results parameter and saves them in

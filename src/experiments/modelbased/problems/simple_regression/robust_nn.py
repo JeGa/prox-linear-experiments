@@ -1,22 +1,18 @@
 import numpy as np
-import matplotlib.pylab as plt
 import scipy.optimize
 import logging
 
 import modelbased.data.noise_from_model
 import modelbased.utils.misc
-import modelbased.solvers.prox_descent_damping
+import modelbased.solvers.prox_descent_linesearch
 import modelbased.solvers.projected_gradient
 import modelbased.solvers.utils
+from .misc import generate_data, plot
 
 logger = logging.getLogger(__name__)
 
 
-class l1norm:
-    def __init__(self, x, y_targets):
-        self.x = x
-        self.y_targets = y_targets
-
+class RobustRegression:
     @classmethod
     def f(cls, u, x):
         """
@@ -88,7 +84,7 @@ class l1norm:
 
     @staticmethod
     def split_params(u):
-        P = int(u.shape[0] / 2)
+        P = u.shape[0] // 2
 
         a = u[:P]
         b = u[P:]
@@ -156,7 +152,7 @@ class l1norm:
         return cls.h(cls.c(u, x), y_targets).squeeze() + cls.reg(u, lam).squeeze()
 
     @classmethod
-    def solve_linearized_subproblem(cls, uk, tau, x, y_targets, lam):
+    def solve_subproblem(cls, uk, tau, x, y_targets, lam):
         """
         Solve the inner linearized subproblem using gradient ascent on the dual problem.
 
@@ -224,65 +220,64 @@ class l1norm:
 
         return u, linloss
 
-    def run(self, u_init):
-        params = modelbased.utils.misc.Params(
-            max_iter=50,
-            mu_min=0.01,
-            tau=2,
-            sigma=0.7,
-            eps=1e-6)
 
-        lam = 0.01
+class RobustRegressionProxLinearFixed(RobustRegression):
+    pass
+
+
+class RobustRegressionProxLinearLinesearch(RobustRegression):
+    @classmethod
+    def run(cls, u_init, x, y_targets):
+        params = modelbased.utils.misc.Params(
+            max_iter=10,
+            eps=1e-12,
+            proximal_weight=1,
+            gamma=0.6,
+            delta=0.5,
+            eta_max=2)
+
+        lam = 0.0
 
         def loss(u):
-            return self.loss(u, self.x, self.y_targets, lam)
+            return cls.loss(u, x, y_targets, lam)
 
         def subsolver(u, tau):
-            return self.solve_linearized_subproblem(u, tau, self.x, self.y_targets, lam)
+            return cls.solve_subproblem(u, tau, x, y_targets, lam)
 
-        proxdescent = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, loss, subsolver)
+        proxdescent = modelbased.solvers.prox_descent_linesearch.ProxDescentLinesearch(params, verbose=True)
 
-        u_new, losses = proxdescent.run(u_init, verbose=True)
+        u_new, losses = proxdescent.run(u_init, loss, subsolver)
 
         return u_new
 
 
-def plot(x, y, y_noisy, y_predict, y_init):
-    plt.plot(x, y, label='true')
-    plt.scatter(x, y_noisy, marker='x')
-    plt.plot(x, y_predict, label='predict')
-    plt.plot(x, y_init, label='init')
+class RobustRegressionProxLinearDamping(RobustRegression):
+    pass
 
-    plt.minorticks_on()
-    plt.grid(which='major', linestyle='-', linewidth=0.1)
 
-    plt.legend()
-
-    plt.show()
+# params = modelbased.utils.misc.Params(
+#     max_iter=50,
+#     mu_min=0.01,
+#     tau=2,
+#     sigma=0.7,
+#     eps=1e-6)
 
 
 def run():
-    N = 200
-    P_gen = 10
+    seed = 4444
+    np.random.seed(seed)
+
+    x, y_noisy, y = generate_data(samples=200, P=10, seed=seed)
+
+    # Number of parameters of the prediction function (2P).
     P_model = 20
+    u_init = np.random.randn(P_model, 1)
 
-    np.random.seed(1112)
+    reg = RobustRegressionProxLinearLinesearch
 
-    # Generate some noisy data.
-    a = 2 * np.random.random((P_gen, 1))
-    b = np.random.random((P_gen, 1))
-    u = np.concatenate((a, b), axis=0)
+    u_new = reg.run(u_init, x, y_noisy)
 
-    def fun(_x):
-        return l1norm.f(u, _x)
-
-    x, y_noisy, y = modelbased.data.noise_from_model.generate(N, fun)
-
-    reg = l1norm(x, y_noisy)
-
-    u_init = 0.1 * np.ones((2 * P_model, 1))
-    u_new = reg.run(u_init)
-
+    # TODO: Save results.
     y_predict = reg.f(u_new, x)
     y_init = reg.f(u_init, x)
 
