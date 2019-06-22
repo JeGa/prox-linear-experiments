@@ -1,10 +1,10 @@
+# TODO: Remove the losses return value.
 def run(epochs, loader, step_fun, device, epoch_fun=None, interval_fun=None, interval=None):
     total_losses = []
 
     iteration = 0
 
     for i in range(epochs):
-
         batch_iteration = 0
         for x, yt in loader:
             x, yt = x.to(device), yt.to(device)

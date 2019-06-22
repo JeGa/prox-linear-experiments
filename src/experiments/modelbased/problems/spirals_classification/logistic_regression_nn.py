@@ -122,6 +122,7 @@ class batchG(LogisticRegression):
 
         self.net.params = u
 
+        # TODO: Move to base class.
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('full_batch_gradient_descent'),
             type='train',

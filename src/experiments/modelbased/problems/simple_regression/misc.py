@@ -1,13 +1,23 @@
 import matplotlib.pylab as plt
 import numpy as np
+from collections import namedtuple
 
-from .robust_nn import RobustRegression
+from modelbased.problems.simple_regression.robust_exp import RobustRegression
 import modelbased.data.noise_from_model
 
 
-def plot(x, y, y_noisy, y_predict, y_init):
+def plot_regression(x, y, y_targets, y_predict, y_init):
+    """
+    All parameters have the shape (N, 1).
+
+    :param x: Input samples.
+    :param y: True output samples.
+    :param y_targets: Noisy output samples.
+    :param y_predict: Predicted output after training.
+    :param y_init: Predicted output before training.
+    """
     plt.plot(x, y, label='true')
-    plt.scatter(x, y_noisy, marker='x', label='f + e')
+    plt.scatter(x, y_targets, marker='x', label='f + e')
     plt.plot(x, y_predict, label='predict')
     plt.plot(x, y_init, label='init')
 
@@ -38,4 +48,4 @@ def generate_data(samples, P, seed):
 
     x, y_noisy, y = modelbased.data.noise_from_model.generate(samples, fun, noise='laplacian', seed=seed)
 
-    return x, y_noisy, y
+    return namedtuple('Data', 'x y y_targets seed')(x, y, y_noisy, seed)
