@@ -139,7 +139,7 @@ class RobustRegression:
 
         :return: L(u).
         """
-        return (cls.h(cls.c(u, x), y_targets).squeeze() + cls.reg(u, lam).squeeze()).item()
+        return (cls.h(cls.c(u, x), y_targets).squeeze() + cls.reg(u, lam).squeeze())
 
     @staticmethod
     def description():

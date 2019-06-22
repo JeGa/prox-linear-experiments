@@ -87,7 +87,7 @@ class RobustRegressionProxLinear(modelbased.problems.simple_regression.robust_ex
     @classmethod
     def solve(cls, data, solver, u_init, lam):
         def loss(u):
-            return cls.loss(u, data.x, data.y_targets, lam)
+            return cls.loss(u, data.x, data.y_targets, lam).item()
 
         def subsolver(u, tau):
             return cls.solve_subproblem(u, tau, data.x, data.y_targets, lam)
