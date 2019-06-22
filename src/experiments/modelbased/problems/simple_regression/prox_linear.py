@@ -6,6 +6,8 @@ import modelbased.utils.misc
 import modelbased.utils.results
 import modelbased.utils.yaml
 import modelbased.solvers.prox_descent_linesearch
+import modelbased.solvers.prox_descent_damping
+import modelbased.solvers.prox_descent_fixed
 import modelbased.solvers.projected_gradient
 import modelbased.solvers.utils
 import modelbased.problems.simple_regression.misc
@@ -83,29 +85,7 @@ class RobustRegressionProxLinear(modelbased.problems.simple_regression.robust_ex
         return u, linloss
 
     @classmethod
-    def run(cls, u_init, data):
-        raise NotImplementedError
-
-
-class FixedStepsize(RobustRegressionProxLinear):
-    @classmethod
-    def run(cls, u_init, data):
-        pass
-
-
-class Linesearch(RobustRegressionProxLinear):
-    @classmethod
-    def run(cls, u_init, data):
-        params = modelbased.utils.misc.Params(
-            max_iter=10,
-            eps=1e-12,
-            proximal_weight=1,
-            gamma=0.6,
-            delta=0.5,
-            eta_max=2)
-
-        lam = 0.0
-
+    def solve(cls, data, solver, u_init, lam):
         def loss(u):
             return cls.loss(u, data.x, data.y_targets, lam)
 
@@ -114,10 +94,62 @@ class Linesearch(RobustRegressionProxLinear):
 
         init_loss = loss(u_init)
 
-        proxdescent = modelbased.solvers.prox_descent_linesearch.ProxDescentLinesearch(params, verbose=True)
-        u_new, losses = proxdescent.run(u_init, loss, subsolver)
+        u_new, losses = solver.run(u_init, loss, subsolver)
 
         losses.insert(0, init_loss)
+
+        return u_new, losses
+
+    @classmethod
+    def run(cls, u_init, data):
+        raise NotImplementedError
+
+
+class FixedStepsize(RobustRegressionProxLinear):
+    @classmethod
+    def run(cls, u_init, data):
+        params = modelbased.utils.misc.Params(
+            max_iter=4,
+            sigma=1
+        )
+
+        lam = 0.0
+
+        solver = modelbased.solvers.prox_descent_fixed.ProxDescentFixed(params, verbose=True)
+        u_new, losses = cls.solve(data, solver, u_init, lam)
+
+        results = modelbased.utils.results.Results(
+            name=modelbased.utils.misc.append_time('robust-regression-prox-linear-fixed'),
+            type='train',
+            description={**cls.description(), 'optimization method': 'prox-linear with fixed step size.'},
+            train_dataset={
+                'name': 'generated with seed ' + str(data.seed),
+                'size': data.x.shape[0]
+            },
+            loss={'batch': [losses, list(range(len(losses)))]},
+            parameters={**vars(params), 'lambda': lam},
+            info=None,
+            model_parameters=u_new.tolist()
+        )
+
+        return results
+
+
+class Linesearch(RobustRegressionProxLinear):
+    @classmethod
+    def run(cls, u_init, data):
+        params = modelbased.utils.misc.Params(
+            max_iter=2,
+            eps=1e-12,
+            proximal_weight=1,
+            gamma=0.6,
+            delta=0.5,
+            eta_max=2)
+
+        lam = 0.0
+
+        solver = modelbased.solvers.prox_descent_linesearch.ProxDescentLinesearch(params, verbose=True)
+        u_new, losses = cls.solve(data, solver, u_init, lam)
 
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('robust-regression-prox-linear-linesearch'),
@@ -136,15 +168,36 @@ class Linesearch(RobustRegressionProxLinear):
         return results
 
 
-class RobustRegressionProxLinearDamping(RobustRegressionProxLinear):
+class Damping(RobustRegressionProxLinear):
     @classmethod
     def run(cls, u_init, data):
         params = modelbased.utils.misc.Params(
-            max_iter=50,
+            max_iter=10,
             mu_min=0.01,
             tau=2,
             sigma=0.7,
             eps=1e-6)
+
+        lam = 0.0
+
+        solver = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, verbose=True)
+        u_new, losses = cls.solve(data, solver, u_init, lam)
+
+        results = modelbased.utils.results.Results(
+            name=modelbased.utils.misc.append_time('robust-regression-prox-linear-damping'),
+            type='train',
+            description={**cls.description(), 'optimization method': 'prox-linear with damping.'},
+            train_dataset={
+                'name': 'generated with seed ' + str(data.seed),
+                'size': data.x.shape[0]
+            },
+            loss={'batch': [losses, list(range(len(losses)))]},
+            parameters={**vars(params), 'lambda': lam},
+            info=None,
+            model_parameters=u_new.tolist()
+        )
+
+        return results
 
 
 def plot_regression(model_parameters, u_init, data):
@@ -164,7 +217,7 @@ def run():
     P_model = 20
     u_init = np.random.randn(P_model, 1)
 
-    results = Linesearch.run(u_init, data)
+    results = FixedStepsize.run(u_init, data)
 
     modelbased.utils.yaml.write_result(results)
 

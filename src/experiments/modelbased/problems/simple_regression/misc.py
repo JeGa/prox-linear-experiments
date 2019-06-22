@@ -17,9 +17,10 @@ def plot_regression(x, y, y_targets, y_predict, y_init):
     :param y_init: Predicted output before training.
     """
     plt.plot(x, y, label='true')
-    plt.scatter(x, y_targets, marker='x', label='f + e')
-    plt.plot(x, y_predict, label='predict')
-    plt.plot(x, y_init, label='init')
+    plt.scatter(x, y_targets, marker='x', label='samples', linewidths=1)
+
+    plt.plot(x, y_predict, label='prediction')
+    plt.plot(x, y_init, label='initialization')
 
     plt.minorticks_on()
     plt.grid(which='major', linestyle='-', linewidth=0.1)
