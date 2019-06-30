@@ -20,7 +20,7 @@ def load(folder, training_samples=None, test_samples=None,
     :param target_transform_function: Function which, if not None, is applied to the targets.
         ``For example one_hot_encoding=lambda x: utils.misc.one_hot(x, 10)``.
 
-    :return: trainloader, testloader, training_batch_size, test_batch_size, classes.
+    :return: trainloader, testloader, training_batch_size, test_batch_size, training_data_size, test_data_size, classes.
     """
     input_transform = tf.Compose([tf.ToTensor(), tf.Normalize([0.5], [0.5])])
 
@@ -60,4 +60,4 @@ def load(folder, training_samples=None, test_samples=None,
 
     classes = 10
 
-    return trainloader, testloader, training_batch_size, test_batch_size, classes
+    return trainloader, testloader, training_batch_size, test_batch_size, len(trainset), len(testset), classes
