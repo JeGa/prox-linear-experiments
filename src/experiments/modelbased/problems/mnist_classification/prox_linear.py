@@ -128,7 +128,7 @@ class FixedStepsize(SVM_OVA_ProxLinear):
         lam = 0
         tau = 10
 
-        # Number of prox steps per subproblem / modelfunction.
+        # Number of proximal steps per subproblem / modelfunction.
         sub_iterations = 1
 
         num_epochs = kwargs['num_epochs']
@@ -141,6 +141,7 @@ class FixedStepsize(SVM_OVA_ProxLinear):
 
         mini_batch_losses = [init_loss]  # Loss per mini-batch step over mini-batch samples.
         batch_losses = [init_loss]  # Loss per mini-batch step over all samples.
+        moreau_grad = []  # Norm of gradient of Moreau envelope of model functions per mini-batch step.
 
         def step_fun(x, yt):
             # We could also instantiate the ProxLinearFixed class, but this makes no sense here, since we just need to
@@ -158,6 +159,9 @@ class FixedStepsize(SVM_OVA_ProxLinear):
 
             # Batch loss.
             batch_losses.append(self.loss(u_new, x_all, y_all, lam))
+
+            # Norm of gradient of Moreau envelope of model functions.
+            moreau_grad.append(tau * torch.norm(u_new - u, p=2).item())
 
             return [mini_batch_loss]
 
@@ -182,7 +186,8 @@ class FixedStepsize(SVM_OVA_ProxLinear):
             },
             loss={
                 'mini-batch': [mini_batch_losses, list(range(len(mini_batch_losses)))],
-                'batch': [batch_losses, list(range(len(batch_losses)))]
+                'batch': [batch_losses, list(range(len(batch_losses)))],
+                'moreau-grad': [moreau_grad, list(range(len(moreau_grad)))]
             },
             parameters={'tau': tau, 'lambda': lam, 'num_epochs': num_epochs, 'batch_size': batch_size},
             info=None,
@@ -192,20 +197,20 @@ class FixedStepsize(SVM_OVA_ProxLinear):
         return results
 
 
-# TODO.
 class Linesearch(SVM_OVA_ProxLinear):
     def run(self, trainloader, **kwargs):
-        subiter = 5
+        lam = 0
+
+        # Number of proximal steps per subproblem / modelfunction.
+        sub_iterations = 1
 
         params = modelbased.utils.misc.Params(
-            max_iter=subiter,  # TODO: Try if != 1. What algorithm is it then?
+            max_iter=sub_iterations,
             eps=1e-12,
             proximal_weight=0.1,
             gamma=0.5,
             delta=0.5,
             eta_max=3)
-
-        lam = 0.0
 
         num_epochs = kwargs['num_epochs']
         data_size = kwargs['data_size']
@@ -213,42 +218,47 @@ class Linesearch(SVM_OVA_ProxLinear):
 
         x_all, y_all = modelbased.data.utils.get_samples(trainloader, data_size)
 
-        mini_batch_all_loss = []  # Loss per mini-batch step over all samples.
-        mini_batch_loss = []  # TODO. + init loss.
+        init_loss = self.loss(self.net.params, x_all, y_all, lam)
+
+        mini_batch_losses = [init_loss]  # Loss per mini-batch step over mini-batch samples.
+        batch_losses = [init_loss]  # Loss per mini-batch step over all samples.
 
         proxdescent = modelbased.solvers.prox_descent_linesearch.ProxDescentLinesearch(
             params, tensor_type='pytorch', verbose=True)
 
         def step_fun(x, yt):
-            u_init = self.net.params
+            u = self.net.params
 
             def loss(u):
                 return self.loss(u, x, yt, lam)
 
             def subsolver(u, tau):
+                # TODO stopcond.
                 # def stopcond(uk, linloss):  # TODO.
                 #     if linloss - loss(uk) < 0:
                 #         return True
                 #     else:
                 #         return False
-                # TODO stopcond.
                 return self.solve_subproblem(u, tau, x, yt, lam, verbose=False, stopping_condition=None)
 
-            u_new, losses = proxdescent.run(u_init, loss, subsolver)
+            u_new, _ = proxdescent.run(u, loss, subsolver)
 
             self.net.params = u_new
 
-            mini_batch_all_loss.append(self.loss(u_new, x_all, y_all, lam))
+            # Mini-batch loss.
+            mini_batch_loss = self.loss(u_new, x, yt, lam)
 
-            return losses
+            # Batch loss.
+            batch_losses.append(self.loss(u_new, x_all, y_all, lam))
+
+            return [mini_batch_loss]
 
         def interval_fun(epoch, iteration, batch_iteration, _total_losses):
             logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(trainloader),
                                                                epoch, num_epochs, _total_losses[-1]))
 
-        # TODO: Split loss.
-        mini_batch_loss = modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
-                                                        interval_fun=interval_fun, interval=1)
+        mini_batch_losses += modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
+                                                           interval_fun=interval_fun, interval=1)
 
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('mnist-classification-prox-linear-linesearch'),
@@ -263,9 +273,8 @@ class Linesearch(SVM_OVA_ProxLinear):
                 'size': data_size
             },
             loss={
-                'mini_batch': [mini_batch_loss, list(range(len(mini_batch_loss)))],
-                'mini_batch_all': [mini_batch_all_loss,
-                                   [i for i in range(0, len(mini_batch_all_loss) * subiter, subiter)]]
+                'mini-batch': [mini_batch_losses, list(range(len(mini_batch_losses)))],
+                'batch': [batch_losses, list(range(len(batch_losses)))]
             },
             parameters={**vars(params), 'lambda': lam, 'num_epochs': num_epochs, 'batch_size': batch_size},
             info=None,
@@ -275,28 +284,44 @@ class Linesearch(SVM_OVA_ProxLinear):
         return results
 
 
-# TODO.
 class Damping(SVM_OVA_ProxLinear):
     def run(self, trainloader, **kwargs):
+        lam = 0.0
+
+        # Number of proximal steps per subproblem / modelfunction.
+        sub_iterations = 1
+
         params = modelbased.utils.misc.Params(
-            max_iter=1,  # TODO: Try != 1.
+            max_iter=sub_iterations,
             eps=1e-6,
             mu_min=1,
             tau=5,
             sigma=0.7)
 
-        lam = 0.0
-
         num_epochs = kwargs['num_epochs']
         data_size = kwargs['data_size']
         batch_size = trainloader.batch_size
+
+        x_all, y_all = modelbased.data.utils.get_samples(trainloader, data_size)
+
+        init_loss = self.loss(self.net.params, x_all, y_all, lam)
+
+        mini_batch_losses = [init_loss]  # Loss per mini-batch step over mini-batch samples.
+        batch_losses = [init_loss]  # Loss per mini-batch step over all samples.
+        moreau_grad = []  # Norm of gradient of Moreau envelope of model functions per mini-batch step.
 
         proxdescent = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params,
                                                                                  tensor_type='pytorch',
                                                                                  verbose=True)
 
         def step_fun(x, yt):
-            u_init = self.net.params
+            u = self.net.params
+
+            accepted_tau = None
+
+            def callback(u_new, tau):
+                nonlocal accepted_tau
+                accepted_tau = tau
 
             def loss(u):
                 return self.loss(u, x, yt, lam)
@@ -304,19 +329,27 @@ class Damping(SVM_OVA_ProxLinear):
             def subsolver(u, tau):
                 return self.solve_subproblem(u, tau, x, yt, lam, verbose=False)
 
-            u_new, losses = proxdescent.run(u_init, loss, subsolver)
+            u_new, losses = proxdescent.run(u, loss, subsolver, callback=callback)
 
             self.net.params = u_new
 
-            return losses
+            # Mini-batch loss.
+            mini_batch_loss = self.loss(u_new, x, yt, lam)
+
+            # Batch loss.
+            batch_losses.append(self.loss(u_new, x_all, y_all, lam))
+
+            # Norm of gradient of Moreau envelope of model functions.
+            moreau_grad.append(accepted_tau * torch.norm(u_new - u, p=2).item())
+
+            return [mini_batch_loss]
 
         def interval_fun(epoch, iteration, batch_iteration, _total_losses):
             logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(trainloader),
                                                                epoch, num_epochs, _total_losses[-1]))
 
-        # TODO: Split loss.
-        mini_batch_loss = modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
-                                                        interval_fun=interval_fun, interval=1)
+        mini_batch_losses += modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
+                                                           interval_fun=interval_fun, interval=1)
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('mnist-classification-prox-linear-damping'),
             type='train',
@@ -329,7 +362,11 @@ class Damping(SVM_OVA_ProxLinear):
                 'name': 'MNIST',
                 'size': data_size
             },
-            loss={'mini_batch': [mini_batch_loss, list(range(len(mini_batch_loss)))]},
+            loss={
+                'mini-batch': [mini_batch_losses, list(range(len(mini_batch_losses)))],
+                'batch': [batch_losses, list(range(len(batch_losses)))],
+                'moreau-grad': [moreau_grad, list(range(len(moreau_grad)))]
+            },
             parameters={**vars(params), 'lambda': lam, 'num_epochs': num_epochs, 'batch_size': batch_size},
             info=None,
             model_parameters=self.net.params.cpu().numpy().tolist()
@@ -409,11 +446,10 @@ def run():
 
     trainloader, testloader, train_size, test_size = data(train_samples, train_samples, batchsize, batchsize)
 
-    classificator = FixedStepsize()
+    classificator = Damping()
     results = classificator.run(trainloader, data_size=train_size, num_epochs=3)
 
-    modelbased.utils.misc.plot_loss(results)
-    # modelbased.utils.yaml.write_result(results)
+    modelbased.utils.yaml.write_result(results)
 
     # TODO.
     # evaluate(results, results['name'], trainloader, testloader)

@@ -1,11 +1,12 @@
 import matplotlib
 
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 import logging
 
-# import problems.mnist_classification_nn.svm_ova as svm_ova_proxdescent
-import problems.simple_regression.prox_linear as robust_regression
-import problems.spirals_classification.gradient_descent as logistic_regression
+import problems.mnist_classification.prox_linear as mnist_classification
+import problems.simple_regression.prox_linear as robust_regression_prox_linear
+import problems.simple_regression.gradient_descent as robust_regression_gradient_descent
+import problems.spirals_classification.gradient_descent as spirals_classification
 
 import modelbased.utils.misc
 
@@ -13,14 +14,13 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(funcName)s - %(message)s")
     modelbased.utils.misc.make_folders()
 
-    # svm_ova_proxdescent.evaluate_from_file('prox_descent_fixed_03-05-19_18:57:32')
-    # svm_ova_proxdescent.train()
-
-    run = None
+    run = 'mnist-cls'
 
     if run == 'mnist-cls':
-        pass
+        mnist_classification.run()
     elif run == 'spirals-cls':
-        logistic_regression.run()
+        spirals_classification.run()
     elif run == 'exp-reg':
-        robust_regression.run()
+        robust_regression_prox_linear.run()
+    elif run == 'exp-reg-gd':
+        robust_regression_gradient_descent.run()
