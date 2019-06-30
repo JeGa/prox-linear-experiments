@@ -42,15 +42,15 @@ class BatchGradient(logreg.LogisticRegression):
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('full-batch-gradient-descent'),
             type='train',
-            description={**self.description(),
-                         'optimization method': 'full batch gradient descent with fixed step size.'},
+            description={
+                **self.description(),
+                'optimization method': 'full batch gradient descent with fixed step size.'
+            },
             train_dataset={
                 'name': kwargs['data_name'],
                 'size': data_size
             },
-            loss={
-                'batch': [batch_loss, [i for i in range(0, len(batch_loss) * data_size, data_size)]]
-            },
+            loss={'batch': [batch_loss, [i for i in range(0, len(batch_loss) * data_size, data_size)]]},
             parameters={**vars(params), 'batch_size': batch_size},
             info=None,
             model_parameters=self.net.params.cpu().numpy().tolist()
@@ -66,6 +66,7 @@ class StochasticGradient(logreg.LogisticRegression):
         num_epochs = kwargs['num_epochs']
         data_size = kwargs['data_size']
         batch_size = trainloader.batch_size
+
         mini_batch_all_loss = []  # Loss per mini-batch step over all samples.
         mini_batch_loss = []  # Loss per mini-batch over mini-batch samples.
 
@@ -103,8 +104,10 @@ class StochasticGradient(logreg.LogisticRegression):
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('stochastic-gradient'),
             type='train',
-            description={**self.description(),
-                         'optimization method': 'stochastic gradient descent with fixed step size.'},
+            description={
+                **self.description(),
+                'optimization method': 'stochastic gradient descent with fixed step size.'
+            },
             train_dataset={
                 'name': kwargs['data_name'],
                 'size': data_size

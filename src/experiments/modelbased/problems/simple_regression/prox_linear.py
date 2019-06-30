@@ -11,12 +11,12 @@ import modelbased.solvers.prox_descent_fixed
 import modelbased.solvers.projected_gradient
 import modelbased.solvers.utils
 import modelbased.problems.simple_regression.misc
-import modelbased.problems.simple_regression.robust_exp
+import modelbased.problems.simple_regression.robust_exp as robust_exp
 
 logger = logging.getLogger(__name__)
 
 
-class RobustRegressionProxLinear(modelbased.problems.simple_regression.robust_exp.RobustRegression):
+class RobustRegressionProxLinear(robust_exp.RobustRegression):
     @classmethod
     def solve_subproblem(cls, uk, tau, x, y_targets, lam):
         """
@@ -86,6 +86,21 @@ class RobustRegressionProxLinear(modelbased.problems.simple_regression.robust_ex
 
     @classmethod
     def solve(cls, data, solver, u_init, lam):
+        diffnorm = []
+
+        def callback(**kwargs):
+            # Prox of model function.
+            _u_new = kwargs['u_new']
+            tau = kwargs['tau']
+
+            if not diffnorm:
+                diff = u_init - _u_new
+            else:
+                diff = callback.u_old - _u_new
+
+            callback.u_old = _u_new
+            diffnorm.append(tau * np.linalg.norm(diff).item())
+
         def loss(u):
             return cls.loss(u, data.x, data.y_targets, lam).item()
 
@@ -94,11 +109,11 @@ class RobustRegressionProxLinear(modelbased.problems.simple_regression.robust_ex
 
         init_loss = loss(u_init)
 
-        u_new, losses = solver.run(u_init, loss, subsolver)
+        u_new, losses = solver.run(u_init, loss, subsolver, callback=callback)
 
         losses.insert(0, init_loss)
 
-        return u_new, losses
+        return u_new, losses, diffnorm
 
     @classmethod
     def run(cls, u_init, data):
@@ -109,14 +124,13 @@ class FixedStepsize(RobustRegressionProxLinear):
     @classmethod
     def run(cls, u_init, data):
         params = modelbased.utils.misc.Params(
-            max_iter=4,
-            sigma=1
-        )
+            max_iter=5,
+            sigma=0.1)
 
         lam = 0.0
 
         solver = modelbased.solvers.prox_descent_fixed.ProxDescentFixed(params, verbose=True)
-        u_new, losses = cls.solve(data, solver, u_init, lam)
+        u_new, losses, diffnorm = cls.solve(data, solver, u_init, lam)
 
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('robust-regression-prox-linear-fixed'),
@@ -124,9 +138,13 @@ class FixedStepsize(RobustRegressionProxLinear):
             description={**cls.description(), 'optimization method': 'prox-linear with fixed step size.'},
             train_dataset={
                 'name': 'generated with seed ' + str(data.seed),
+                'noise-scale': data.scale,
                 'size': data.x.shape[0]
             },
-            loss={'batch': [losses, list(range(len(losses)))]},
+            loss={
+                'batch': [losses, list(range(len(losses)))],
+                'moreau-grad': [diffnorm, list(range(len(diffnorm)))]
+            },
             parameters={**vars(params), 'lambda': lam},
             info=None,
             model_parameters=u_new.tolist()
@@ -139,9 +157,9 @@ class Linesearch(RobustRegressionProxLinear):
     @classmethod
     def run(cls, u_init, data):
         params = modelbased.utils.misc.Params(
-            max_iter=2,
+            max_iter=5,
             eps=1e-12,
-            proximal_weight=1,
+            proximal_weight=0.1,
             gamma=0.6,
             delta=0.5,
             eta_max=2)
@@ -149,7 +167,7 @@ class Linesearch(RobustRegressionProxLinear):
         lam = 0.0
 
         solver = modelbased.solvers.prox_descent_linesearch.ProxDescentLinesearch(params, verbose=True)
-        u_new, losses = cls.solve(data, solver, u_init, lam)
+        u_new, losses, diffnorm = cls.solve(data, solver, u_init, lam)
 
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('robust-regression-prox-linear-linesearch'),
@@ -157,9 +175,13 @@ class Linesearch(RobustRegressionProxLinear):
             description={**cls.description(), 'optimization method': 'prox-linear with linesearch.'},
             train_dataset={
                 'name': 'generated with seed ' + str(data.seed),
+                'noise-scale': data.scale,
                 'size': data.x.shape[0]
             },
-            loss={'batch': [losses, list(range(len(losses)))]},
+            loss={
+                'batch': [losses, list(range(len(losses)))],
+                'moreau-grad': [diffnorm, list(range(len(diffnorm)))]
+            },
             parameters={**vars(params), 'lambda': lam},
             info=None,
             model_parameters=u_new.tolist()
@@ -172,16 +194,16 @@ class Damping(RobustRegressionProxLinear):
     @classmethod
     def run(cls, u_init, data):
         params = modelbased.utils.misc.Params(
-            max_iter=10,
-            mu_min=0.01,
+            max_iter=5,
+            mu_min=0.1,
             tau=2,
-            sigma=0.7,
+            sigma=0.8,
             eps=1e-6)
 
         lam = 0.0
 
         solver = modelbased.solvers.prox_descent_damping.ProxDescentDamping(params, verbose=True)
-        u_new, losses = cls.solve(data, solver, u_init, lam)
+        u_new, losses, diffnorm = cls.solve(data, solver, u_init, lam)
 
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('robust-regression-prox-linear-damping'),
@@ -189,9 +211,13 @@ class Damping(RobustRegressionProxLinear):
             description={**cls.description(), 'optimization method': 'prox-linear with damping.'},
             train_dataset={
                 'name': 'generated with seed ' + str(data.seed),
+                'noise-scale': data.scale,
                 'size': data.x.shape[0]
             },
-            loss={'batch': [losses, list(range(len(losses)))]},
+            loss={
+                'batch': [losses, list(range(len(losses)))],
+                'moreau-grad': [diffnorm, list(range(len(diffnorm)))]
+            },
             parameters={**vars(params), 'lambda': lam},
             info=None,
             model_parameters=u_new.tolist()
@@ -200,25 +226,33 @@ class Damping(RobustRegressionProxLinear):
         return results
 
 
-def plot_regression(model_parameters, u_init, data):
-    y_predict = RobustRegressionProxLinear.f(np.array(model_parameters), data.x)
-    y_init = RobustRegressionProxLinear.f(u_init, data.x)
-
-    modelbased.problems.simple_regression.misc.plot_regression(data.x, data.y, data.y_targets, y_predict, y_init)
-
-
 def run():
-    seed = 4444
+    # Tests are run with:
+    # 1) seed=4444, scale=3, P_model=20.
+    # 2) seed=4445, scale=15, P_model=20.
+
+    seed = 4445
+    scale = 15
+
     np.random.seed(seed)
 
-    data = modelbased.problems.simple_regression.misc.generate_data(samples=200, P=10, seed=seed)
+    data = modelbased.problems.simple_regression.misc.generate_data(samples=200, P=10, seed=seed, scale=scale)
 
-    # Number of parameters of the prediction function (2P).
+    # Number of parameters of the prediction function.
     P_model = 20
     u_init = np.random.randn(P_model, 1)
 
-    results = FixedStepsize.run(u_init, data)
+    # results_fixed = FixedStepsize.run(u_init, data)
+    # results_linesearch = Linesearch.run(u_init, data)
+    results_damping = Damping.run(u_init, data)
 
-    modelbased.utils.yaml.write_result(results)
+    # modelbased.utils.yaml.write_result(results_fixed)
+    # modelbased.utils.yaml.write_result(results_linesearch)
+    # modelbased.utils.yaml.write_result(results_damping)
 
-    plot_regression(results.model_parameters, u_init, data)
+    # modelbased.problems.simple_regression.misc.plot_regression(
+    #    'fixed', results_fixed.model_parameters, u_init, data)
+    # modelbased.problems.simple_regression.misc.plot_regression(
+    #    'linesearch', results_linesearch.model_parameters, u_init, data)
+    modelbased.problems.simple_regression.misc.plot_regression(
+        'damping', results_damping.model_parameters, u_init, data)
