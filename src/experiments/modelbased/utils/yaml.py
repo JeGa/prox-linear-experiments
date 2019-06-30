@@ -23,23 +23,6 @@ def write_result(results):
     return filepath
 
 
-# TODO: Remove this and use the new Results class.
-def write(results):
-    """
-    Dumps the complete results dict into a yaml file.
-
-
-    :param results: Dictionary to save in yaml format.
-
-        Needs to have a 'name' entry which is used for the filename.
-        Needs to have a 'type' entry which is used to determine the directory.
-    """
-    filepath = os.path.join(cfg.folders['data_' + results['type']], results['name'] + '.yml')
-
-    with open(filepath, 'w') as f:
-        yaml.dump(results, f, default_flow_style=False)
-
-
 def load(name):
     """
     :param name: Name with .yml extension.
