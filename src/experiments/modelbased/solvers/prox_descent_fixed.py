@@ -19,7 +19,7 @@ class ProxDescentFixed:
         self.tensor_type = tensor_type
         self.verbose = verbose
 
-    def run(self, u_init, loss, solve_subproblem):
+    def run(self, u_init, loss, solve_subproblem, callback=None):
         """
         :param u_init: Initial parameter guess.
         :param loss: Loss function h(c(u)) + r(u).
@@ -28,6 +28,8 @@ class ProxDescentFixed:
             u_new, linloss = solve_subproblem(u, sigma).
 
             Where sigma is the weight factor for the proximal term.
+
+        :param callback: Optional callback called in each iteration.
 
         :return: Solution u, list of losses (if max_iter > 1).
         """
@@ -42,6 +44,9 @@ class ProxDescentFixed:
 
             loss_value = loss(u)
             losses.append(loss_value)
+
+            if callback:
+                callback(u_new=u, tau=self.params.sigma)
 
             if self.verbose:
                 logger.info("Iteration {}/{}: {:.6f}".format(i, self.params.max_iter, loss_value))

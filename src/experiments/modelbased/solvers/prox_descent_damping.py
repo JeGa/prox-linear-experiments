@@ -4,6 +4,7 @@ import modelbased.solvers.utils
 logger = logging.getLogger(__name__)
 
 
+# TODO: Use Exceptions for early termination.
 class ProxDescentDamping:
     def __init__(self, params, tensor_type='numpy', verbose=False):
         """
@@ -23,7 +24,7 @@ class ProxDescentDamping:
         self.tensor_type = tensor_type
         self.verbose = verbose
 
-    def run(self, u_init, loss, solve_linearized_subproblem):
+    def run(self, u_init, loss, solve_linearized_subproblem, callback=None):
         """
         :param u_init: Initial parameter guess.
         :param loss: Loss function h(c(u)) + r(u).
@@ -32,6 +33,8 @@ class ProxDescentDamping:
             Parameters: u_new, linloss = solve_linearized_subproblem(u, mu).
 
             Where mu is the weight factor for the proximal term.
+
+        :param callback: Optional callback called in each iteration.
 
         :return: Solution u, list of losses (if max_iter > 1).
         """
@@ -43,6 +46,7 @@ class ProxDescentDamping:
 
         terminate = False
         u = u_init
+        accepted_mu = None
 
         for i in range(self.params.max_iter):
             num_subproblem = 0
@@ -75,6 +79,7 @@ class ProxDescentDamping:
 
                 # Accept if decrease is sufficiently large.
                 if diff_loss >= self.params.sigma * diff_lin:
+                    accepted_mu = mu
                     mu = max(self.params.mu_min, mu / self.params.tau)
 
                     u = u_new
@@ -92,5 +97,8 @@ class ProxDescentDamping:
 
             if terminate:
                 break
+
+            if callback:
+                callback(u_new=u, tau=accepted_mu)
 
         return u, losses
