@@ -1,5 +1,6 @@
 import torch
 import logging
+import click
 
 import modelbased.data.mnist as mnist_data
 import modelbased.data.utils
@@ -125,17 +126,16 @@ class SVM_OVA_ProxLinear(svmova_nn.SVM_OVA):
 
 class FixedStepsize(SVM_OVA_ProxLinear):
     def run(self, trainloader, **kwargs):
-        lam = 0
-        tau = 10
-
         # Number of proximal steps per subproblem / modelfunction.
         sub_iterations = 1
 
+        lam = kwargs['lam']
+        tau = kwargs['step_size']
         num_epochs = kwargs['num_epochs']
         data_size = kwargs['data_size']
         batch_size = trainloader.batch_size
 
-        x_all, y_all = modelbased.data.utils.get_samples(trainloader, data_size)
+        x_all, y_all = modelbased.data.utils.get_samples(trainloader, data_size, self.net.device)
 
         init_loss = self.loss(self.net.params, x_all, y_all, lam)
 
@@ -398,58 +398,87 @@ def data(train_samples, test_samples, train_batchsize, test_batchsize):
     return trainloader, testloader, train_size, test_size
 
 
-# TODO.
-# def restore(train_results):
-#     params = torch.Tensor(train_results['model_parameters'])
-#
-#     classificator = SVM_OVA()
-#     classificator.net.params = params
-#
-#     return classificator
-#
-#
-# def evaluate(train_results, name, trainloader, testloader):
-#     classificator = restore(train_results)
-#
-#     test_results = train_results
-#
-#     test_results['name'] = name
-#     test_results['type'] = 'test'
-#
-#     # On training data.
-#     modelbased.utils.evaluate.image_grid(name, classificator, trainloader)
-#     correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, trainloader)
-#
-#     test_results['zero_one_train'] = "{}/{}".format(correct, num_samples)
-#
-#     # On test data.
-#     modelbased.utils.evaluate.image_grid(name, classificator, testloader)
-#     correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, testloader)
-#
-#     test_results['zero_one_test'] = "{}/{}".format(correct, num_samples)
-#
-#     modelbased.utils.yaml.write(test_results)
-#
-#
-# def evaluate_from_file(name):
-#     train_results = modelbased.utils.yaml.load(name)
-#
-#     train_samples = 50
-#     batchsize = 10
-#     trainloader, testloader = data(train_samples, batchsize)
-#
-#     evaluate(train_results, modelbased.utils.misc.append_time(train_results['name']), trainloader, testloader)
+def restore(train_results):
+    """
+    :param train_results: Results object.
 
-def run():
+    :return: Instance of SVM_OVA with model parameters loaded from train_results.
+    """
+    params = torch.Tensor(train_results.model_parameters)
+
+    classificator = svmova_nn.SVM_OVA()
+    classificator.net.params = params
+
+    return classificator
+
+
+def evaluate(train_results, name, trainloader, testloader):
+    """
+    Evaluate the model saved in train_results.
+
+    :param train_results: Results object.
+    :param name: Name of the new Results object.
+    :param trainloader: Training data loader.
+    :param testloader:  Test data loader
+    """
+    classificator = restore(train_results)
+
+    test_results = train_results
+
+    test_results.name = name
+    test_results.type = 'test'
+
+    # On training data.
+    modelbased.utils.evaluate.image_grid(name, classificator, trainloader)
+    correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, trainloader)
+
+    print(correct, num_samples)
+    # test_results['zero_one_train'] = "{}/{}".format(correct, num_samples)
+
+    # On test data.
+    modelbased.utils.evaluate.image_grid(name, classificator, testloader)
+    correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, testloader)
+
+    print(correct, num_samples)
+    # test_results['zero_one_test'] = "{}/{}".format(correct, num_samples)
+    # modelbased.utils.yaml.write(test_results)
+
+
+def evaluate_from_file(name):
+    """
+    Evaluate the model in the given result yaml file.
+
+    :param name: Path of yaml result file.
+    """
+    train_results = modelbased.utils.results.Results(**modelbased.utils.yaml.load(name))
+
     train_samples = 50
     batchsize = 10
+    trainloader, testloader, _, _ = data(train_samples, train_samples, batchsize, batchsize)
 
-    trainloader, testloader, train_size, test_size = data(train_samples, train_samples, batchsize, batchsize)
+    evaluate(train_results, modelbased.utils.misc.append_time(train_results.name), trainloader, testloader)
 
-    classificator = Damping()
-    results = classificator.run(trainloader, data_size=train_size, num_epochs=3)
 
+@click.command()
+@click.option('--train-samples', required=True, type=int, help='Set to -1 to use all training data.')
+@click.option('--num-epochs', required=True, type=int)
+@click.option('--batch-size', required=True, type=int)
+@click.option('--lam', required=True, type=int)
+@click.option('--step-size', required=True, type=int)
+def argrun_fixed(train_samples, num_epochs, batch_size, lam, step_size):
+    """
+    Train MNIST classificator using prox-linear with fixed step size.
+    """
+    if train_samples == -1:
+        train_samples = None
+
+    trainloader, testloader, train_size, test_size = data(train_samples, train_samples, batch_size, batch_size)
+
+    classificator = FixedStepsize()
+    results = classificator.run(trainloader, data_size=train_size, num_epochs=num_epochs, lam=lam, step_size=step_size)
     modelbased.utils.yaml.write_result(results)
 
-    # TODO.
-    # evaluate(results, results['name'], trainloader, testloader)
+
+def run():
+    argrun_fixed.callback(train_samples=10, num_epochs=1, batch_size=10, lam=0, step_size=15)
+    # evaluate_from_file('modelbased/results/data/train/mnist-classification-prox-linear-fixed_01-07-19_10:29:18.yml')

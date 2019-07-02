@@ -67,14 +67,14 @@ class StochasticGradient(logreg.LogisticRegression):
         data_size = kwargs['data_size']
         batch_size = trainloader.batch_size
 
-        mini_batch_all_loss = []  # Loss per mini-batch step over all samples.
+        batch_loss = []  # Loss per mini-batch step over all samples.
         mini_batch_loss = []  # Loss per mini-batch over mini-batch samples.
 
         x_all, y_all = modelbased.data.utils.get_samples(trainloader, data_size)
 
         # Initial loss.
         init_loss = self.loss(self.net.params, x_all, y_all).item()
-        mini_batch_all_loss.append(init_loss)
+        batch_loss.append(init_loss)
         mini_batch_loss.append(init_loss)
 
         def step_fun(x, yt):
@@ -90,7 +90,7 @@ class StochasticGradient(logreg.LogisticRegression):
 
             self.net.params = u
 
-            mini_batch_all_loss.append(self.loss(u, x_all, y_all).item())
+            batch_loss.append(self.loss(u, x_all, y_all).item())
 
             return _losses
 
@@ -114,11 +114,11 @@ class StochasticGradient(logreg.LogisticRegression):
             },
             loss={
                 # Loss per mini-batch step over mini-batch samples.
-                'mini_batch': [
+                'mini-batch': [
                     mini_batch_loss, [i for i in range(0, len(mini_batch_loss) * batch_size, batch_size)]],
                 # Loss per mini-batch over all samples.
-                'mini_batch_all': [
-                    mini_batch_all_loss, [i for i in range(0, len(mini_batch_all_loss) * batch_size, batch_size)]]
+                'batch': [
+                    batch_loss, [i for i in range(0, len(batch_loss) * batch_size, batch_size)]]
             },
             parameters={**vars(params), 'num_epochs': num_epochs, 'batch_size': batch_size},
             info=None,
@@ -161,9 +161,6 @@ def run():
 
     u_init, batch_train_results = batch('datasets/binary-spirals/5000')
     u_init, stochastic_train_results = stochastic('datasets/binary-spirals/5000', u_init)
-
-    modelbased.utils.misc.plot_losses([batch_train_results, stochastic_train_results],
-                                      [['batch'], ['mini_batch_all']])
 
     modelbased.utils.yaml.write_result(batch_train_results)
     modelbased.utils.yaml.write_result(stochastic_train_results)
