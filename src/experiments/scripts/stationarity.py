@@ -1,5 +1,21 @@
 import matplotlib.pyplot as plt
+
+params = {
+    'backend': 'pgf',
+    'pgf.texsystem': 'lualatex',
+    'text.latex.preamble': [r"\usepackage{lmodern}"],
+    'text.usetex': True,
+    'pgf.rcfonts': False,
+    'font.size': 7,
+    'font.family': 'lmodern'}
+
+plt.rcParams.update(params)
+
 import numpy as np
+import pathlib
+import modelbased.utils.global_config as cfg
+
+plotfolder = pathlib.Path(cfg.folders['plots'])
 
 x = np.linspace(-2, 2, num=300)
 
@@ -63,13 +79,17 @@ def plot_multiple(fun, prox, lambda_list, function_label, filename):
     plt.minorticks_on()
     plt.grid(which='major', linestyle='-', linewidth=0.1)
 
-    plt.plot(x, y_fun, label=function_label)
+    plt.plot(x, y_fun, label=function_label, linewidth=0.8)
 
     for i in m:
-        plt.plot(x, i[0], '--', label='$\lambda=$' + str(i[1]), linewidth=1)
+        plt.plot(x, i[0], '--', label='$\lambda=$' + str(i[1]), linewidth=0.6)
 
     plt.legend()
-    plt.savefig(filename + '.pdf', bbox_inches='tight')
+
+    plt.gcf().set_size_inches(3.1, 2.3, forward=True)
+    plt.subplots_adjust(left=0.1, right=0.98, top=0.98, bottom=0.17)
+
+    plt.savefig(plotfolder / (filename + '.pdf'))
 
 
 def plot_g():
