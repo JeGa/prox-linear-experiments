@@ -1,9 +1,10 @@
-import torch
-from torch.nn import functional as F
 import logging
 
-import modelbased.problems.mnist_classification.nn as mnist_nn
+import torch
+from torch.nn import functional as F
+
 import modelbased.problems.mnist_classification.misc as misc
+import modelbased.problems.mnist_classification.nn as mnist_nn
 
 logger = logging.getLogger(__name__)
 

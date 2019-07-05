@@ -18,8 +18,11 @@ class FixedStepsize(prox_linear.SVM_OVA_ProxLinear):
         lam = kwargs['lam']
         tau = kwargs['step_size']
         num_epochs = kwargs['num_epochs']
+        num_samples = kwargs['num_samples']
         data_size = kwargs['data_size']
         batch_size = trainloader.batch_size
+
+        seen_samples = 0
 
         x_all, y_all = modelbased.data.utils.get_samples(trainloader, data_size, self.net.device)
 
@@ -30,6 +33,8 @@ class FixedStepsize(prox_linear.SVM_OVA_ProxLinear):
         moreau_grad = []  # Norm of gradient of Moreau envelope of model functions per mini-batch step.
 
         def step_fun(x, yt):
+            nonlocal seen_samples
+
             # We could also instantiate the ProxLinearFixed class, but this makes no sense here, since we just need to
             # call the solve_subproblem method.
             u = self.net.params
@@ -49,14 +54,20 @@ class FixedStepsize(prox_linear.SVM_OVA_ProxLinear):
             # Norm of gradient of Moreau envelope of model functions.
             moreau_grad.append(tau * torch.norm(u_new - u, p=2).item())
 
-            return [mini_batch_loss]
+            mini_batch_losses.append(mini_batch_loss)
 
-        def interval_fun(epoch, iteration, batch_iteration, _total_losses):
+            seen_samples += batch_size
+            if seen_samples == num_samples:
+                return True
+
+            return False
+
+        def interval_fun(epoch, iteration, batch_iteration):
             logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(trainloader),
-                                                               epoch, num_epochs, _total_losses[-1]))
+                                                               epoch, num_epochs, mini_batch_losses[-1]))
 
-        mini_batch_losses += modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
-                                                           interval_fun=interval_fun, interval=1)
+        modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
+                                      interval_fun=interval_fun, interval=1)
 
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('mnist-classification-prox-linear-fixed'),
