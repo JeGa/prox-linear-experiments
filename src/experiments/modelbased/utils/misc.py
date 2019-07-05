@@ -17,7 +17,7 @@ class Params:
 def make_folders():
     for item in cfg.folders.values():
         if not os.path.exists(item):
-            os.mkdir(item)
+            os.makedirs(item)
 
 
 def plot_grid(filename, x, y, yt, nrow=6):

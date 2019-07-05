@@ -25,10 +25,10 @@ class Results:
         'description',  # A dict describing the algorithm.
         'train_dataset',  # A dict with information about the training data set.
 
-        'loss',  # Contains a dict with the different losses.
         'parameters',  # Parameters of the optimization algorithm.
         'info',  # A dict with any additional information.
 
+        'loss',  # Contains a dict with the different losses.
         'model_parameters'  # Parameters of the model.
     )
 
@@ -39,15 +39,3 @@ class Results:
     @property
     def __dict__(self):
         return {var: getattr(self, var) for var in self.__slots__ if hasattr(self, var)}
-
-    # TODO: Remove with plot function, not needed.
-    def info_text(self):
-        """
-        Returns a string containing all relevant information about the used methods, etc.
-        Does not contain any model parameters or losses.
-
-        :return: string.
-        """
-        return self.name + os.linesep + "mode=" + self.type + os.linesep + \
-               format_dict(self.description) + os.linesep + format_dict(self.train_dataset) + os.linesep + \
-               format_dict(self.parameters) + os.linesep + format_dict(self.info)
