@@ -18,7 +18,7 @@ def write_result(results):
     filepath = os.path.join(cfg.folders['data_' + results.type], results.name + '.yml')
 
     with open(filepath, 'w') as f:
-        yaml.dump(vars(results), f, default_flow_style=False)
+        yaml.dump(vars(results), f, default_flow_style=False, sort_keys=False)
 
     return filepath
 
