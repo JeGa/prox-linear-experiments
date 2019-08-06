@@ -1,3 +1,5 @@
+# TODO: Should move to plot scripts.
+
 import matplotlib.pylab as plt
 import numpy as np
 import os
@@ -13,48 +15,80 @@ params = {
     'text.latex.preamble': [r"\usepackage{lmodern}"],
     'text.usetex': True,
     'pgf.rcfonts': False,
-    'font.size': 11,
-    'font.family': 'lmodern'}
+    'font.size': 8,
+    'font.family': 'lmodern'
+}
 
 plt.rcParams.update(params)
 
 
-def plot_regression(name, model_parameters, u_init, data):
+def plot(name, model_parameters, u_init, data, size, margins):
     y_predict = RobustRegression.f(np.array(model_parameters), data.x)
     y_init = RobustRegression.f(u_init, data.x)
 
-    plot_predictions(data.x, data.y, data.y_targets, y_predict, y_init, name=name)
+    plot_predictions(name, data.x, data.y, data.y_targets, y_predict, y_init, size, margins)
 
 
-def plot_predictions(x, y, y_targets, y_predict, y_init, name='robust-regression'):
+def plot_data(name, x, y, y_targets, size, margins):
     """
     All parameters have the shape (N, 1).
 
+    :param name: Filename.
     :param x: Input samples.
     :param y: True output samples.
     :param y_targets: Noisy output samples.
-    :param y_predict: Predicted output after training.
-    :param y_init: Predicted output before training.
-    :param name: Filename.
+    :param size: Tuple with x,y size of the plot.
+    :param margins: Dict with plot margins.
     """
     plt.figure()
     plt.grid(which='major', linestyle='-', linewidth=0.1)
 
     # True.
-    plt.plot(x, y, label=r'$f(\hat{x})$', c='black')
+    plt.plot(x, y, label=r'$h(\hat{x})$', c='black')
+
+    # Samples.
+    plt.scatter(x, y_targets, marker='x', label='$(p,q)$', linewidth=0.6, s=25)
+
+    plt.minorticks_on()
+    plt.gcf().set_size_inches(size[0], size[1], forward=True)
+    plt.subplots_adjust(**margins)
+
+    plt.legend()
+
+    plt.savefig(os.path.join(cfg.folders['plots'], name + '.pdf'))
+
+
+def plot_predictions(name, x, y, y_targets, y_predict, y_init, size, margins):
+    """
+    All parameters have the shape (N, 1).
+
+    :param name: Filename.
+    :param x: Input samples.
+    :param y: True output samples.
+    :param y_targets: Noisy output samples.
+    :param y_predict: Predicted output after training.
+    :param y_init: Predicted output before training.
+    :param size: Tuple with x,y size of the plot.
+    :param margins: Dict with plot margins.
+    """
+    plt.figure()
+    plt.grid(which='major', linestyle='-', linewidth=0.1)
+
+    # True.
+    plt.plot(x, y, label=r'$h(\hat{x})$', c='black')
 
     # Samples.
     plt.scatter(x, y_targets, marker='x', label='$(p,q)$', linewidth=0.6, s=25)
 
     # Predictions after training.
-    plt.plot(x, y_predict, label=r'$f(\bar{x})$', c='darkorange')
+    plt.plot(x, y_predict, label=r'$h(\bar{x})$', c='darkorange')
 
     # Predictions before training.
-    plt.plot(x, y_init, label=r'$f(x^1)$', c='green')
+    plt.plot(x, y_init, label=r'$h(x^1)$', c='green')
 
     plt.minorticks_on()
-    plt.gcf().set_size_inches(3.2, 3, forward=True)
-    plt.subplots_adjust(left=0.21, right=0.95, top=0.95, bottom=0.15)
+    plt.gcf().set_size_inches(size[0], size[1], forward=True)
+    plt.subplots_adjust(**margins)
 
     plt.legend()
 

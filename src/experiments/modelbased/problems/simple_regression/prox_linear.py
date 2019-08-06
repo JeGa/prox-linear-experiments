@@ -10,7 +10,6 @@ import modelbased.solvers.prox_descent_damping
 import modelbased.solvers.prox_descent_fixed
 import modelbased.solvers.projected_gradient
 import modelbased.solvers.utils
-import modelbased.problems.simple_regression.misc
 import modelbased.problems.simple_regression.robust_exp as robust_exp
 
 logger = logging.getLogger(__name__)
@@ -224,35 +223,3 @@ class Damping(RobustRegressionProxLinear):
         )
 
         return results
-
-
-def run():
-    # Tests are run with:
-    # 1) seed=4444, scale=3, P_model=20.
-    # 2) seed=4445, scale=15, P_model=20.
-
-    seed = 4445
-    scale = 15
-
-    np.random.seed(seed)
-
-    data = modelbased.problems.simple_regression.misc.generate_data(samples=200, P=10, seed=seed, scale=scale)
-
-    # Number of parameters of the prediction function.
-    P_model = 20
-    u_init = np.random.randn(P_model, 1)
-
-    # results_fixed = FixedStepsize.run(u_init, data)
-    # results_linesearch = Linesearch.run(u_init, data)
-    results_damping = Damping.run(u_init, data)
-
-    # modelbased.utils.yaml.write_result(results_fixed)
-    # modelbased.utils.yaml.write_result(results_linesearch)
-    # modelbased.utils.yaml.write_result(results_damping)
-
-    # modelbased.problems.simple_regression.misc.plot_regression(
-    #    'fixed', results_fixed.model_parameters, u_init, data)
-    # modelbased.problems.simple_regression.misc.plot_regression(
-    #    'linesearch', results_linesearch.model_parameters, u_init, data)
-    modelbased.problems.simple_regression.misc.plot_regression(
-        'damping', results_damping.model_parameters, u_init, data)

@@ -7,7 +7,7 @@ import modelbased.utils.evaluate
 import modelbased.utils.misc
 import modelbased.utils.yaml
 
-
+# TODO:Change that.
 def evaluate(train_results, name, trainloader, testloader):
     """
     Evaluate the model saved in train_results.
@@ -40,7 +40,7 @@ def evaluate(train_results, name, trainloader, testloader):
     # modelbased.utils.yaml.write(test_results)
 
 
-def evaluate_from_file(name):
+def evaluate_from_file(name, train_samples=50, batch_size=10):
     """
     Evaluate the model in the given result yaml file.
 
@@ -48,9 +48,7 @@ def evaluate_from_file(name):
     """
     train_results = modelbased.utils.results.Results(**modelbased.utils.yaml.load(name))
 
-    train_samples = 50
-    batchsize = 10
-    trainloader, testloader, _, _ = misc.data(train_samples, train_samples, batchsize, batchsize)
+    trainloader, testloader, _, _ = misc.data(train_samples, train_samples, batch_size, batch_size)
 
     evaluate(train_results, modelbased.utils.misc.append_time(train_results.name), trainloader, testloader)
 

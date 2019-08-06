@@ -17,7 +17,6 @@ def format_dict(_dict):
     return formatted_text
 
 
-# TODO: All methods should use this format.
 class Results:
     __slots__ = (
         'name',

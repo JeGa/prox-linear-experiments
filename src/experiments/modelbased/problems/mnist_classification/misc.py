@@ -6,10 +6,15 @@ import modelbased.data.mnist as mnist_data
 import modelbased.utils.misc
 
 
-def imshow_grid(x, num_images=16):
+def image_grid(x, file):
     plt.figure()
-    plt.imshow(np.transpose(torchvision.utils.make_grid(x[:num_images], padding=5, normalize=True), (1, 2, 0)))
-    plt.show()
+    plt.axis('off')
+    plt.gca().axes.get_xaxis().set_visible(False)
+    plt.gca().axes.get_yaxis().set_visible(False)
+
+    plt.imshow(np.transpose(torchvision.utils.make_grid(x, padding=2, pad_value=255, normalize=True),
+                            (1, 2, 0)))
+    plt.savefig(file, bbox_inches='tight', pad_inches=0)
 
 
 def sql2norm(x):

@@ -31,18 +31,24 @@ class SVM_OVA:
         return _max.sum(1, keepdim=True)
 
     @classmethod
-    def h(cls, a, y_targets, n=None):
+    def h(cls, a, y_targets, n=None, torch_tensor=False):
         """
         :param a: shape = (n, c).
         :param y_targets: shape = (n, c) in one-hot encoding with "hot" = 1, else -1.
         :param n: The factor the sum is multiplied with (1/N).
+        :param torch_tensor: If true, returns a torch tensor, else a scalar.
 
-        :return: h(a) scalar.
+        :return: h(a) torch tensor or scalar.
         """
         if not n:
             n = a.size(0)
 
-        return (1 / n) * cls.L(a, y_targets).sum().item()
+        ret = (1 / n) * cls.L(a, y_targets).sum()
+
+        if torch_tensor:
+            return ret
+        else:
+            return ret.item()
 
     def c(self, u, x, set_param=False):
         """
@@ -76,6 +82,14 @@ class SVM_OVA:
         :return: L(u).
         """
         return self.h(self.c(u, x), y_targets) + self.reg(u, lam)
+
+    def grad(self, u, x, y_targets, lam):
+        with self.net.param_eval(u):
+            self.net.zero_grad()
+            loss = self.h(self.net.forward(x), y_targets, torch_tensor=True) + self.reg(u, lam)
+            loss.backward()
+
+        return self.net.gradient
 
     def _predict(self, u, x):
         x = x.to(self.net.device)
