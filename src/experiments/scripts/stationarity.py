@@ -1,23 +1,5 @@
-import matplotlib.pyplot as plt
-
-params = {
-    'backend': 'pgf',
-    'pgf.texsystem': 'lualatex',
-    'text.latex.preamble': [r"\usepackage{lmodern}"],
-    'text.usetex': True,
-    'pgf.rcfonts': False,
-    'font.size': 7,
-    'font.family': 'lmodern'}
-
-plt.rcParams.update(params)
-
 import numpy as np
-import pathlib
-import modelbased.utils.global_config as cfg
-
-plotfolder = pathlib.Path(cfg.folders['plots'])
-
-x = np.linspace(-2, 2, num=300)
+from scripts.plot import *
 
 
 def f(_x):
@@ -67,31 +49,6 @@ def prox_g(_x, lam):
     return A
 
 
-def plot_multiple(fun, prox, lambda_list, function_label, filename):
-    y_fun = fun(x)
-
-    m = []
-    for i in lambda_list:
-        m.append([moreau(x, i, fun, prox), i])
-
-    plt.figure()
-    plt.xlabel('x')
-    plt.minorticks_on()
-    plt.grid(which='major', linestyle='-', linewidth=0.1)
-
-    plt.plot(x, y_fun, label=function_label, linewidth=0.8)
-
-    for i in m:
-        plt.plot(x, i[0], '--', label='$\lambda=$' + str(i[1]), linewidth=0.6)
-
-    plt.legend()
-
-    plt.gcf().set_size_inches(3.1, 2.3, forward=True)
-    plt.subplots_adjust(left=0.1, right=0.98, top=0.98, bottom=0.17)
-
-    plt.savefig(plotfolder / (filename + '.pdf'))
-
-
 def plot_g():
     y_g = g(x)
 
@@ -118,5 +75,46 @@ def plot_f():
     plt.show()
 
 
-plot_multiple(f, prox_f, [0.1, 0.5, 1, 1.5, 2, 2.5], '$f(x) = x^2 + |x|$', 'moreau-example-1')
-plot_multiple(g, prox_g, [0.05, 0.2, 0.4, 0.5], '$f(x) = |x^2 - 1|$', 'moreau-example-2')
+def plot_multiple(fun, prox, lambda_list, function_label, filename):
+    y_fun = fun(x)
+
+    y_fun_entry = PlotEntry(x, y_fun, '-', 0.8, function_label)
+
+    m = []
+    for i in lambda_list:
+        m.append(PlotEntry(x, moreau(x, i, fun, prox), '--', 0.6, r'env$_{' + str(i) + 'f}(x)$'))
+
+    # plt.gcf().set_size_inches(3, 2.5, forward=True)
+    # plt.subplots_adjust(left=0.1, right=0.98, top=0.98, bottom=0.15)
+    plot([y_fun_entry] + m, filename)
+
+
+x = np.linspace(-2, 2, num=300)
+
+
+# plot_multiple(f, prox_f, [0.1, 0.5, 1, 1.5, 2, 2.5], '$f(x) = x^2 + |x|$', 'moreau-example-1')
+# plot_multiple(g, prox_g, [0.05, 0.2, 0.4, 0.5], '$f(x) = |x^2 - 1|$', 'moreau-example-2')
+
+
+def plot_slides():
+    y_fun_entry = PlotEntry(x, g(x), '-', 0.8, '$f(x) = |x^2 - 1|$')
+    y_moreau_entry = PlotEntry(x, moreau(x, 0.4, g, prox_g), '--', 0.8, 'env$_f(x)$')
+
+    def ticks(x):
+        y = g(np.array(x))
+        labels = ['$x^' + str(i + 1) + '$' for i in range(len(x))]
+
+        def fun():
+            plt.gca().set_xticks(x)
+            plt.gca().set_xticklabels(labels)
+            plt.scatter(x, y, marker='o', c='red', linewidth=1.25, s=10, zorder=3)
+
+        return fun
+
+    plot([y_fun_entry], 'moreau-example-2-slides-1')
+    plot([y_fun_entry], 'moreau-example-2-slides-2', custom=ticks([0.2]))
+    plot([y_fun_entry], 'moreau-example-2-slides-3', custom=ticks([0.2, 0.4, 0.6, 0.8, 0.96]))
+    plot([y_fun_entry, y_moreau_entry], 'moreau-example-2-slides-4')
+
+
+plot_slides()
