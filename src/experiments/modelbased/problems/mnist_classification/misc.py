@@ -6,15 +6,24 @@ import modelbased.data.mnist as mnist_data
 import modelbased.utils.misc
 
 
-def image_grid(x, file):
+def image_grid(x, file, nrow, size, margin):
     plt.figure()
-    plt.axis('off')
-    plt.gca().axes.get_xaxis().set_visible(False)
-    plt.gca().axes.get_yaxis().set_visible(False)
 
-    plt.imshow(np.transpose(torchvision.utils.make_grid(x, padding=2, pad_value=255, normalize=True),
+    plt.tick_params(axis='both', which='both', bottom=False, top=False, labelbottom=False, right=False, left=False,
+                    labelleft=False)
+
+    if size:
+        plt.gcf().set_size_inches(size[0], size[1], forward=True)
+    if margin:
+        plt.subplots_adjust(**margin)
+
+    plt.imshow(np.transpose(torchvision.utils.make_grid(x, nrow=nrow, padding=2, pad_value=255, normalize=True),
                             (1, 2, 0)))
-    plt.savefig(file, bbox_inches='tight', pad_inches=0)
+
+    if size is None and margin is None:
+        plt.savefig(file, bbox_inches='tight', pad_inches=0)
+    else:
+        plt.savefig(file)
 
 
 def sql2norm(x):
