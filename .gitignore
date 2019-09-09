@@ -10,3 +10,4 @@ upload.sh
 slurm.sbatch
 slurm.sh
 slurmjobs.sh
+remotepy_config.ini
