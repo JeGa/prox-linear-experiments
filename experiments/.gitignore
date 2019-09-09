@@ -1,5 +1,0 @@
-deepbregman
-*.ipynb
-.ipynb_checkpoints
-slurm.sbatch
-modelbased/results
