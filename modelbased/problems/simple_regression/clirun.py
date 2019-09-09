@@ -41,6 +41,9 @@ def plot(seed, scale):
 
 @click.command('robreg-pl')
 def run():
+    """
+    Regression using prox-linear with different step size strategies.
+    """
     # Tests are run with:
     # 1) seed=4444, scale=3, P_model=20.
     # 2) seed=4445, scale=15, P_model=20.
