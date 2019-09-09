@@ -8,3 +8,5 @@ datasets
 modelbased/results
 upload.sh
 slurm.sbatch
+slurm.sh
+slurmjobs.sh
