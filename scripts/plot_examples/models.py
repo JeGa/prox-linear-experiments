@@ -1,5 +1,5 @@
 import numpy as np
-from scripts.plot import *
+from scripts.plot_examples.plot import *
 
 
 def f(_x):

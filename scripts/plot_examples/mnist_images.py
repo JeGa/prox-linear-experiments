@@ -6,8 +6,8 @@ plotfolder = pathlib.Path(cfg.folders['plots'])
 
 
 def get_images(num):
-    trainloader, testloader, train_size, test_size = modelbased.problems.mnist_classification.misc.data(num, num, num,
-                                                                                                        num)
+    trainloader, testloader, train_size, test_size = modelbased.problems.mnist_classification.misc.data(
+        num, num, num, num)
     x, _ = next(iter(trainloader))
 
     return x

@@ -1,5 +1,5 @@
 import collections
-from plotgen import *
+from scripts.plot_results.plotgen import *
 
 PlotLine = collections.namedtuple('PlotLine', 'file loss label')
 PlotSettings = collections.namedtuple('PlotSettings', 'title xlabel ylabel')
@@ -60,8 +60,10 @@ files_mnist_1_1 = {
     ],
     # Batch-size = 10.
     'mnist-cls-mini-batch-loss-fixed-step-sizes-bs10': [
-        # PlotLine('mnist-classification-prox-linear-fixed_05-07-19_16:36:05.yml', 'mini-batch', r'$\sigma^{-1} = 0.1$'),
-        # PlotLine('mnist-classification-prox-linear-fixed_05-07-19_16:23:04.yml', 'mini-batch', r'$\sigma^{-1} = 0.5$'),
+        # PlotLine('mnist-classification-prox-linear-fixed_05-07-19_16:36:05.yml', 'mini-batch',
+        #   r'$\sigma^{-1} = 0.1$'),
+        # PlotLine('mnist-classification-prox-linear-fixed_05-07-19_16:23:04.yml', 'mini-batch',
+        #   r'$\sigma^{-1} = 0.5$'),
         PlotLine('mnist-classification-prox-linear-fixed_05-07-19_14:18:36.yml', 'mini-batch', r'$\sigma^{-1} = 1$'),
         PlotLine('mnist-classification-prox-linear-fixed_05-07-19_14:15:56.yml', 'mini-batch', r'$\sigma^{-1} = 5$'),
         PlotLine('mnist-classification-prox-linear-fixed_05-07-19_14:19:29.yml', 'mini-batch', r'$\sigma^{-1} = 10$'),
@@ -87,8 +89,10 @@ files_mnist_1_2 = {
     ],
     # Batch-size = 1.
     'mnist-cls-mini-batch-loss-fixed-step-sizes-bs1': [
-        # PlotLine('mnist-classification-prox-linear-fixed_05-07-19_18:11:36.yml', 'mini-batch', r'$\sigma^{-1} = 0.1$'),
-        # PlotLine('mnist-classification-prox-linear-fixed_05-07-19_16:47:37.yml', 'mini-batch', r'$\sigma^{-1} = 0.5$'),
+        # PlotLine('mnist-classification-prox-linear-fixed_05-07-19_18:11:36.yml', 'mini-batch',
+        #   r'$\sigma^{-1} = 0.1$'),
+        # PlotLine('mnist-classification-prox-linear-fixed_05-07-19_16:47:37.yml', 'mini-batch',
+        #   r'$\sigma^{-1} = 0.5$'),
         # PlotLine('mnist-classification-prox-linear-fixed_06-07-19_04:00:49.yml', 'mini-batch', r'$\sigma^{-1} = 1$'),
         PlotLine('mnist-classification-prox-linear-fixed_05-07-19_16:51:01.yml', 'mini-batch', r'$\sigma^{-1} = 5$'),
         PlotLine('mnist-classification-prox-linear-fixed_05-07-19_16:51:56.yml', 'mini-batch', r'$\sigma^{-1} = 10$'),
