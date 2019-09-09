@@ -38,7 +38,7 @@ def models_slides():
     y_sub_pl_entry = PlotEntry(x, sub_prox_linear(xk, x, 0.8), '--', 0.8,
                                r'$\phi_{0.5}^1(x) + \frac{1}{2\sigma} \|x - 0.5\|^2$')
 
-    y_model_gd_entry = PlotEntry(x, model_gradient(xk, x), '--', 0.8, r'$\phi_{0.5}^2(x)$')
+    y_model_gd_entry = PlotEntry(x, model_gradient(xk, x), '--', 0.8, r'$\phi_{0.5}^2(x)$', 'mediumpurple')
 
     def annotate():
         plt.annotate(xy=(1.25, 0), xytext=(1.8, 0), s='',

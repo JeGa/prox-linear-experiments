@@ -17,7 +17,8 @@ plt.rcParams.update(params)
 
 plotfolder = pathlib.Path(cfg.folders['plots'])
 
-PlotEntry = collections.namedtuple('PlotEntry', 'x y style width label')
+attributes = ('x', 'y', 'style', 'width', 'label', 'c')
+PlotEntry = collections.namedtuple('PlotEntry', attributes, defaults=(None,) * len(attributes))
 
 
 def plot(functions, filename, custom=None):
@@ -29,7 +30,7 @@ def plot(functions, filename, custom=None):
     plt.tick_params(axis='y', which='both', bottom=False, top=False, left=False, right=False)
 
     for i in functions:
-        plt.plot(i.x, i.y, linestyle=i.style, label=i.label, linewidth=i.width)
+        plt.plot(i.x, i.y, linestyle=i.style, label=i.label, linewidth=i.width, c=i.c)
 
     if custom:
         custom()

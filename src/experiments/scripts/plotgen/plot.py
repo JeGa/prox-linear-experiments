@@ -430,14 +430,13 @@ files_mnist_sgd_pl_compare_31_slides = {
         # SG.
         # PlotLine('mnist-classification-sg-fixed_11-07-19_22:47:16.yml', 'missclassifications',
         #         r'SG$\sigma_{SG} = 0.01$'),
-        PlotLine('mnist-classification-sg-fixed_11-07-19_22:45:48.yml', 'missclassifications',
-                 r'SG $\sigma = 0.05$'),
+        PlotLine('mnist-classification-sg-fixed_11-07-19_22:45:48.yml', 'missclassifications', 'SG'),  # $\sigma = 0.05$
 
         # PL.
-        PlotLine('mnist-classification-prox-linear-fixed_06-07-19_15:45:38.yml', 'missclassifications',
-                 r'prox-linear $\sigma^{-1} = 5$'),
+        PlotLine('mnist-classification-prox-linear-fixed_06-07-19_15:45:38.yml', 'missclassifications', 'prox-linear'),
+        # $\sigma^{-1} = 5$
 
-        PlotSettings('', '$k$', 'Missclassifications')
+        PlotSettings('', '$k$', '')
     ]
 }
 
@@ -445,13 +444,13 @@ files_mnist_sgd_pl_compare_11_slides = {
     'mnist-cls-batch-loss-sg-pl-bs10-1-slides': [
         # SG.
         # PlotLine('mnist-classification-sg-fixed_11-07-19_22:47:16.yml', 'batch', r'SG $\sigma_{SG} = 0.01$'),
-        PlotLine('mnist-classification-sg-fixed_11-07-19_22:45:48.yml', 'batch', r'SG $\sigma = 0.05$'),
+        PlotLine('mnist-classification-sg-fixed_11-07-19_22:45:48.yml', 'batch', 'SG'),  # $\sigma = 0.05$
 
         # PL.
-        PlotLine('mnist-classification-prox-linear-fixed_06-07-19_15:45:38.yml', 'batch',
-                 r'prox-linear $\sigma^{-1} = 5$'),
+        PlotLine('mnist-classification-prox-linear-fixed_06-07-19_15:45:38.yml', 'batch', 'prox-linear'),
+        # $\sigma^{-1} = 5$
 
-        PlotSettings('', '$k$', batch_loss_label)
+        PlotSettings('', '$k$', '')
     ]
 }
 
@@ -541,11 +540,13 @@ def page4_compare():
 
 
 def slides():
-    _page_margin = {'left': 0.19, 'right': 0.98, 'top': 0.95, 'bottom': 0.16}
-    _page_size = (2, 2.2)
+    # 0.19
+    _page_margin = {'left': 0.12, 'right': 0.98, 'top': 0.92, 'bottom': 0.15}
+    _page_size = (2, 2.4)
 
     plot(files_mnist_sgd_pl_compare_11_slides, _page_size, _page_margin, compare_iterations(0, 500),
          ['sgd-bs=10', 'missclass_tau=5'])
+
     plot(files_mnist_sgd_pl_compare_31_slides, _page_size, _page_margin, compare_iterations(0, 500),
          ['sgd-bs=10', 'missclass_tau=5'])
 
