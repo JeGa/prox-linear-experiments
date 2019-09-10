@@ -1,4 +1,4 @@
-#### Abstract
+### Abstract
 
 The experiments investigate the performace of **stochastic prox-linear** based methods compared to the prototypical
 stochastic gradient methods on common optimization problems from supervised machine learning. We focus on solving
@@ -14,7 +14,7 @@ We consider stochastic optimization problems, thus the convex composite ```L(h(x
 
 The code contains the implementation of the used methods as well as the experiments on different optimization problems.
 
-#### Requirements
+### Requirements
 
 The implementation uses python 3.7 and the following libraries.
 
@@ -25,7 +25,7 @@ click
 evaltool (https://github.com/JeGa/evaltool)
 ```
 
-#### Problems
+### Problems
 
 We provide implementations for the following problems.
 
@@ -37,7 +37,7 @@ We provide implementations for the following problems.
 
 The folder ```scripts``` contains various scripts for generating plots and examples.
 
-#### References
+### References
 
 - Adrian S Lewis and Stephen J Wright. “A proximal method for composite minimization”.
 - Dmitriy Drusvyatskiy and Adrian S Lewis. “Error bounds, quadratic growth, and linear convergence of proximal methods”.
