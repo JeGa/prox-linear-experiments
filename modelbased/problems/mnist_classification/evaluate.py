@@ -7,7 +7,7 @@ import modelbased.utils.evaluate
 import modelbased.utils.misc
 import modelbased.utils.yaml
 
-# TODO:Change that.
+
 def evaluate(train_results, name, trainloader, testloader):
     """
     Evaluate the model saved in train_results.
@@ -24,19 +24,16 @@ def evaluate(train_results, name, trainloader, testloader):
     test_results.name = name
     test_results.type = 'test'
 
-    # On training data.
-    modelbased.utils.evaluate.image_grid(name, classificator, trainloader)
-    correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, trainloader)
+    # TODO: Change to new zero_one method signature.
 
-    print(correct, num_samples)
+    # On training data.
+    # correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, trainloader)
     # test_results['zero_one_train'] = "{}/{}".format(correct, num_samples)
 
     # On test data.
-    modelbased.utils.evaluate.image_grid(name, classificator, testloader)
-    correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, testloader)
-
-    print(correct, num_samples)
+    # correct, num_samples = modelbased.utils.evaluate.zero_one(classificator, testloader)
     # test_results['zero_one_test'] = "{}/{}".format(correct, num_samples)
+
     # modelbased.utils.yaml.write(test_results)
 
 
