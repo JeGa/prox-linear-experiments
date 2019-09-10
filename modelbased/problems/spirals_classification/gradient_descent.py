@@ -67,8 +67,8 @@ class StochasticGradient(logreg.LogisticRegression):
         data_size = kwargs['data_size']
         batch_size = trainloader.batch_size
 
-        batch_loss = []  # Loss per mini-batch step over all samples.
         mini_batch_loss = []  # Loss per mini-batch over mini-batch samples.
+        batch_loss = []  # Loss per mini-batch step over all samples.
 
         x_all, y_all = modelbased.data.utils.get_samples(trainloader, data_size)
 
@@ -88,18 +88,20 @@ class StochasticGradient(logreg.LogisticRegression):
 
             u, _losses = modelbased.solvers.gradient_descent.fixed_stepsize(u, f, G, params, verbose=False)
 
+            mini_batch_loss.extend(_losses)
+
             self.net.params = u
 
             batch_loss.append(self.loss(u, x_all, y_all).item())
 
-            return _losses
+            return False
 
         def interval_fun(epoch, iteration, batch_iteration, _total_losses):
             logger.info("[{}:{}/{}:{}/{}] Loss={:.6f}.".format(iteration, batch_iteration, len(trainloader),
                                                                epoch, num_epochs, _total_losses[-1]))
 
-        mini_batch_loss += modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
-                                                         interval_fun=interval_fun, interval=1)
+        modelbased.utils.trainrun.run(num_epochs, trainloader, step_fun, self.net.device,
+                                      interval_fun=interval_fun, interval=1)
 
         results = modelbased.utils.results.Results(
             name=modelbased.utils.misc.append_time('stochastic-gradient'),

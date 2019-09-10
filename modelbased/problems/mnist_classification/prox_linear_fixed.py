@@ -52,14 +52,13 @@ class FixedStepsize(prox_linear.SVM_OVA_ProxLinear):
 
             # Mini-batch loss.
             mini_batch_loss = self.loss(u_new, x, yt, lam)
+            mini_batch_losses.append(mini_batch_loss)
 
             # Batch loss.
             batch_losses.append(self.loss(u_new, x_all, y_all, lam))
 
             # Norm of gradient of Moreau envelope of model functions.
             moreau_grad.append(tau * torch.norm(u_new - u, p=2).item())
-
-            mini_batch_losses.append(mini_batch_loss)  # TODO: Move up.
 
             # Missclassifications.
             if evaluate:

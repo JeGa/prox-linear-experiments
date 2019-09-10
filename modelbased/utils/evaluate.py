@@ -36,7 +36,7 @@ def zero_one_loader(classificator, dataloader):
         wrong += zero_one(classificator, x, yt)
         num_samples += yt.size(0)
 
-        return None
+        return False
 
     def interval_fun(_, iteration, batch_iteration, _total_losses):
         logger.info("[{}:{}/{}] Evaluating zero-one loss: {}/{}.".format(iteration, batch_iteration, len(dataloader),

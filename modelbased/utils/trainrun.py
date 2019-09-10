@@ -1,7 +1,3 @@
-# TODO: Remove the losses return value.
-# TODO: Change usages.
-
-
 def run(epochs, loader, step_fun, device, epoch_fun=None, interval_fun=None, interval=None):
     iteration = 0
 
